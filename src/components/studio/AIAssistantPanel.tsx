@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,84 +15,54 @@ import {
   Check,
 } from "lucide-react";
 import { toast } from "sonner";
+import { useDesignAssistant, AISuggestion } from "@/hooks/useDesignAssistant";
 
 interface AIAssistantPanelProps {
   onSuggestionApply: (suggestion: string) => void;
 }
 
-interface Suggestion {
-  id: string;
-  type: 'color' | 'style' | 'detail' | 'tip';
-  title: string;
-  description: string;
-  icon: React.ElementType;
-}
+const iconMap = {
+  color: Palette,
+  style: Shirt,
+  detail: Sparkles,
+  tip: Lightbulb,
+};
 
-const sampleSuggestions: Suggestion[] = [
-  {
-    id: '1',
-    type: 'color',
-    title: 'Seasonal Color Match',
-    description: 'Consider adding muted terracotta tones for the F/W 2025 trend alignment.',
-    icon: Palette,
-  },
-  {
-    id: '2',
-    type: 'style',
-    title: 'Silhouette Enhancement',
-    description: 'The A-line skirt would benefit from a slightly higher waistline for modern proportions.',
-    icon: Shirt,
-  },
-  {
-    id: '3',
-    type: 'detail',
-    title: 'Detail Refinement',
-    description: 'Add subtle topstitching along the collar for a more polished finish.',
-    icon: Sparkles,
-  },
-  {
-    id: '4',
-    type: 'tip',
-    title: 'Pro Tip',
-    description: 'Use the airbrush tool at 20% opacity for realistic fabric shading.',
-    icon: Lightbulb,
-  },
-];
+const colorMap = {
+  color: "bg-pink-500/20 text-pink-400",
+  style: "bg-blue-500/20 text-blue-400",
+  detail: "bg-amber-500/20 text-amber-400",
+  tip: "bg-green-500/20 text-green-400",
+};
 
 export function AIAssistantPanel({ onSuggestionApply }: AIAssistantPanelProps) {
   const [prompt, setPrompt] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [suggestions, setSuggestions] = useState<Suggestion[]>(sampleSuggestions);
   const [appliedIds, setAppliedIds] = useState<Set<string>>(new Set());
+  const { suggestions, isLoading, fetchSuggestions } = useDesignAssistant();
+
+  // Fetch initial suggestions on mount
+  useEffect(() => {
+    fetchSuggestions("Give me design suggestions for starting a fashion sketch");
+  }, [fetchSuggestions]);
 
   const handleAskAI = async () => {
     if (!prompt.trim()) {
       toast.error("Please enter a prompt");
       return;
     }
-
-    setIsLoading(true);
-    // Simulate AI response
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    toast.success("AI suggestions updated!");
-    setIsLoading(false);
+    await fetchSuggestions(prompt);
     setPrompt("");
   };
 
-  const handleApplySuggestion = (suggestion: Suggestion) => {
+  const handleApplySuggestion = (suggestion: AISuggestion) => {
     onSuggestionApply(suggestion.description);
     setAppliedIds(prev => new Set([...prev, suggestion.id]));
     toast.success(`Applied: ${suggestion.title}`);
   };
 
   const handleRefreshSuggestions = () => {
-    setIsLoading(true);
-    setTimeout(() => {
-      setSuggestions([...sampleSuggestions].sort(() => Math.random() - 0.5));
-      setIsLoading(false);
-      toast.success("Suggestions refreshed!");
-    }, 1000);
+    fetchSuggestions("Refresh my design suggestions with new creative ideas");
+    setAppliedIds(new Set());
   };
 
   return (
@@ -104,8 +74,8 @@ export function AIAssistantPanel({ onSuggestionApply }: AIAssistantPanelProps) {
             <Wand2 className="w-5 h-5 text-white" />
           </div>
           <div>
-            <h3 className="font-display font-semibold text-foreground">AI Design Assistant</h3>
-            <p className="text-xs text-muted-foreground">Powered by Chromatique AI</p>
+            <h3 className="font-display font-semibold text-foreground">Chromatique AI</h3>
+            <p className="text-xs text-muted-foreground">Powered by Lovable AI</p>
           </div>
         </div>
 
@@ -115,6 +85,12 @@ export function AIAssistantPanel({ onSuggestionApply }: AIAssistantPanelProps) {
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="Describe your design vision or ask for suggestions..."
           className="min-h-[80px] resize-none mb-3"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+              e.preventDefault();
+              handleAskAI();
+            }
+          }}
         />
         <Button
           variant="gold"
@@ -156,8 +132,14 @@ export function AIAssistantPanel({ onSuggestionApply }: AIAssistantPanelProps) {
       {/* Suggestions List */}
       <ScrollArea className="flex-1 px-4 pb-4">
         <div className="space-y-3">
+          {suggestions.length === 0 && !isLoading && (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              Ask Chromatique AI for design suggestions
+            </p>
+          )}
           {suggestions.map((suggestion) => {
-            const Icon = suggestion.icon;
+            const Icon = iconMap[suggestion.type] || Lightbulb;
+            const colorClass = colorMap[suggestion.type] || colorMap.tip;
             const isApplied = appliedIds.has(suggestion.id);
 
             return (
@@ -173,10 +155,7 @@ export function AIAssistantPanel({ onSuggestionApply }: AIAssistantPanelProps) {
                 <div className="flex items-start gap-3">
                   <div className={cn(
                     "w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0",
-                    suggestion.type === 'color' && "bg-pink-500/20 text-pink-400",
-                    suggestion.type === 'style' && "bg-blue-500/20 text-blue-400",
-                    suggestion.type === 'detail' && "bg-amber-500/20 text-amber-400",
-                    suggestion.type === 'tip' && "bg-green-500/20 text-green-400",
+                    colorClass
                   )}>
                     <Icon className="w-4 h-4" />
                   </div>
