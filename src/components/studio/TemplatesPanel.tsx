@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { cn } from "@/lib/utils";
 import { garmentTemplates, templateCategories } from "./data/templates";
+import { getSvgTemplate } from "./data/templateSvgs";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Search, ChevronRight } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Search, ChevronRight, Sparkles } from "lucide-react";
 
 interface TemplatesPanelProps {
   onTemplateSelect: (templateId: string) => void;
@@ -20,8 +22,20 @@ export function TemplatesPanel({ onTemplateSelect }: TemplatesPanelProps) {
     return matchesSearch && matchesCategory;
   });
 
+  // Check if template has SVG data (is interactive)
+  const hasInteractiveTemplate = (templateId: string) => {
+    return getSvgTemplate(templateId) !== null;
+  };
+
   return (
     <div className="flex flex-col h-full">
+      {/* Header with instructions */}
+      <div className="p-4 border-b border-border bg-primary/5">
+        <p className="text-xs text-muted-foreground mb-2">
+          Click a template to add it to canvas. Templates with <Sparkles className="w-3 h-3 inline text-primary" /> have fillable regions.
+        </p>
+      </div>
+
       {/* Search */}
       <div className="p-4 border-b border-border">
         <div className="relative">
@@ -70,28 +84,41 @@ export function TemplatesPanel({ onTemplateSelect }: TemplatesPanelProps) {
       {/* Templates Grid */}
       <ScrollArea className="flex-1 p-4">
         <div className="grid grid-cols-2 gap-3">
-          {filteredTemplates.map((template) => (
-            <Card
-              key={template.id}
-              onClick={() => onTemplateSelect(template.id)}
-              className={cn(
-                "group p-4 cursor-pointer transition-all duration-300",
-                "bg-secondary/30 hover:bg-secondary/50",
-                "hover:shadow-lg hover:scale-[1.02]",
-                "border border-border/50 hover:border-primary/30"
-              )}
-            >
-              <div className="aspect-square flex items-center justify-center mb-2 text-4xl opacity-70 group-hover:opacity-100 transition-opacity">
-                {template.thumbnail}
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-medium text-foreground truncate">
-                  {template.name}
-                </span>
-                <ChevronRight className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
-              </div>
-            </Card>
-          ))}
+          {filteredTemplates.map((template) => {
+            const isInteractive = hasInteractiveTemplate(template.id);
+            return (
+              <Card
+                key={template.id}
+                onClick={() => onTemplateSelect(template.id)}
+                className={cn(
+                  "group p-4 cursor-pointer transition-all duration-300 relative",
+                  "bg-secondary/30 hover:bg-secondary/50",
+                  "hover:shadow-lg hover:scale-[1.02]",
+                  "border border-border/50 hover:border-primary/30",
+                  isInteractive && "ring-1 ring-primary/20"
+                )}
+              >
+                {isInteractive && (
+                  <Badge 
+                    variant="secondary" 
+                    className="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary"
+                  >
+                    <Sparkles className="w-3 h-3 mr-1" />
+                    Interactive
+                  </Badge>
+                )}
+                <div className="aspect-square flex items-center justify-center mb-2 text-4xl opacity-70 group-hover:opacity-100 transition-opacity">
+                  {template.thumbnail}
+                </div>
+                <div className="flex items-center justify-between">
+                  <span className="text-xs font-medium text-foreground truncate">
+                    {template.name}
+                  </span>
+                  <ChevronRight className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+                </div>
+              </Card>
+            );
+          })}
         </div>
 
         {filteredTemplates.length === 0 && (
