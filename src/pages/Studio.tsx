@@ -13,6 +13,7 @@ import { AIAssistantPanel } from "@/components/studio/AIAssistantPanel";
 import { PhotoEditPanel } from "@/components/studio/PhotoEditPanel";
 import { ExportPanel } from "@/components/studio/ExportPanel";
 import { StudioCanvas, CanvasHandle, SelectedRegion } from "@/components/studio/StudioCanvas";
+import { useAICanvasAgent } from "@/hooks/useAICanvasAgent";
 import {
   Undo, Redo, ZoomIn, ZoomOut, Grid3X3, Ruler, Save, Download, Wand2,
   Palette, PenTool, Sparkles, ImageIcon, Layers, X,
@@ -63,6 +64,30 @@ export default function Studio() {
     { id: 'sketch', name: 'Sketch Layer', visible: true, locked: false, opacity: 100, blendMode: 'normal', type: 'layer' },
   ]);
   const [activeLayerId, setActiveLayerId] = useState('sketch');
+
+  // AI Canvas Agent
+  const {
+    pendingActions,
+    actionHistory,
+    explanation,
+    isProcessing,
+    executePrompt,
+    applyAction,
+    applyAllActions,
+    rejectAction,
+    rejectAllActions,
+  } = useAICanvasAgent(canvasRef);
+
+  // Build canvas context for AI
+  const getCanvasContext = () => {
+    const parts = [];
+    if (selectedRegion) {
+      parts.push(`Selected region: ${selectedRegion.regionName}`);
+    }
+    parts.push(`Current stage: ${currentStage}`);
+    parts.push(`Active tool: ${activeTool}`);
+    return parts.join('. ');
+  };
 
   const handleZoomIn = () => {
     const newZoom = Math.min(zoom + 25, 400);
@@ -290,7 +315,18 @@ export default function Studio() {
                 />
               )}
               {activeRightTab === 'ai' && (
-                <AIAssistantPanel onSuggestionApply={(s) => toast.info(s)} />
+                <AIAssistantPanel 
+                  onSuggestionApply={(s) => toast.info(s)}
+                  pendingActions={pendingActions}
+                  actionHistory={actionHistory}
+                  explanation={explanation}
+                  isProcessing={isProcessing}
+                  onExecutePrompt={(prompt) => executePrompt(prompt, getCanvasContext())}
+                  onApplyAction={applyAction}
+                  onApplyAllActions={applyAllActions}
+                  onRejectAction={rejectAction}
+                  onRejectAllActions={rejectAllActions}
+                />
               )}
               {activeRightTab === 'edit' && (
                 <PhotoEditPanel onApplyEffect={(e, v) => toast.success(`Applied ${e}: ${v}`)} />
