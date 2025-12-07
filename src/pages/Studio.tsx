@@ -1,7 +1,6 @@
 import { useState, useRef } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent } from "@/components/ui/tabs";
 import { cn } from "@/lib/utils";
 import { WorkflowStage, ToolType, Layer, BrushPreset } from "@/components/studio/types";
 import { WorkflowTabs } from "@/components/studio/WorkflowTabs";
@@ -13,10 +12,10 @@ import { LayersPanel } from "@/components/studio/LayersPanel";
 import { AIAssistantPanel } from "@/components/studio/AIAssistantPanel";
 import { PhotoEditPanel } from "@/components/studio/PhotoEditPanel";
 import { ExportPanel } from "@/components/studio/ExportPanel";
-import { StudioCanvas, CanvasHandle } from "@/components/studio/StudioCanvas";
+import { StudioCanvas, CanvasHandle, SelectedRegion } from "@/components/studio/StudioCanvas";
 import {
   Undo, Redo, ZoomIn, ZoomOut, Grid3X3, Ruler, Save, Download, Wand2,
-  Palette, PenTool, Sparkles, ImageIcon, Presentation, Layers,
+  Palette, PenTool, Sparkles, ImageIcon, Layers, X,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,10 +26,12 @@ const rightPanelTabs = {
   ],
   sketch: [
     { id: 'templates', label: 'Templates', icon: PenTool },
+    { id: 'colors', label: 'Colors', icon: Palette },
     { id: 'layers', label: 'Layers', icon: Layers },
   ],
   detail: [
     { id: 'brushes', label: 'Brushes', icon: Sparkles },
+    { id: 'colors', label: 'Colors', icon: Palette },
     { id: 'layers', label: 'Layers', icon: Layers },
   ],
   refine: [
@@ -56,6 +57,7 @@ export default function Studio() {
   const [showGuides, setShowGuides] = useState(false);
   const [zoom, setZoom] = useState(100);
   const [activeRightTab, setActiveRightTab] = useState('templates');
+  const [selectedRegion, setSelectedRegion] = useState<SelectedRegion | null>(null);
   const [layers, setLayers] = useState<Layer[]>([
     { id: 'bg', name: 'Background', visible: true, locked: true, opacity: 100, blendMode: 'normal', type: 'layer' },
     { id: 'sketch', name: 'Sketch Layer', visible: true, locked: false, opacity: 100, blendMode: 'normal', type: 'layer' },
@@ -76,6 +78,27 @@ export default function Studio() {
 
   const handleExport = (format: string) => {
     canvasRef.current?.exportCanvas(format as 'png' | 'jpg' | 'svg');
+  };
+
+  const handleTemplateSelect = (templateId: string) => {
+    canvasRef.current?.addTemplate(templateId);
+  };
+
+  const handleFillRegion = (color: string) => {
+    canvasRef.current?.fillSelectedRegion(color);
+  };
+
+  const handleClearSelection = () => {
+    canvasRef.current?.clearRegionSelection();
+    setSelectedRegion(null);
+  };
+
+  const handleRegionSelect = (region: SelectedRegion | null) => {
+    setSelectedRegion(region);
+    // Auto-switch to colors tab when a region is selected
+    if (region) {
+      setActiveRightTab('colors');
+    }
   };
 
   const handleAddLayer = () => {
@@ -106,6 +129,20 @@ export default function Studio() {
             <WorkflowTabs currentStage={currentStage} onStageChange={setCurrentStage} />
           </div>
           <div className="flex items-center gap-2">
+            {/* Selection indicator */}
+            {selectedRegion && (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-primary/10 rounded-full border border-primary/20">
+                <span className="text-xs text-primary font-medium">
+                  {selectedRegion.regionName}
+                </span>
+                <button 
+                  onClick={handleClearSelection}
+                  className="hover:bg-primary/20 rounded-full p-0.5"
+                >
+                  <X className="w-3 h-3 text-primary" />
+                </button>
+              </div>
+            )}
             <Button variant="ghost" size="icon" onClick={() => canvasRef.current?.undo()}>
               <Undo className="w-4 h-4" />
             </Button>
@@ -164,6 +201,7 @@ export default function Studio() {
               brushOpacity={brushOpacity}
               showGrid={showGrid}
               showGuides={showGuides}
+              onRegionSelect={handleRegionSelect}
             />
           </div>
 
@@ -194,10 +232,15 @@ export default function Studio() {
             {/* Panel Content */}
             <div className="flex-1 overflow-hidden">
               {activeRightTab === 'colors' && (
-                <ColorPanel activeColor={activeColor} onColorChange={setActiveColor} />
+                <ColorPanel 
+                  activeColor={activeColor} 
+                  onColorChange={setActiveColor}
+                  selectedRegion={selectedRegion}
+                  onFillRegion={handleFillRegion}
+                />
               )}
               {activeRightTab === 'templates' && (
-                <TemplatesPanel onTemplateSelect={(id) => toast.success(`Template: ${id}`)} />
+                <TemplatesPanel onTemplateSelect={handleTemplateSelect} />
               )}
               {activeRightTab === 'brushes' && (
                 <BrushPanel

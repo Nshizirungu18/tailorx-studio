@@ -1,17 +1,29 @@
-import { useEffect, useRef, forwardRef, useImperativeHandle } from "react";
-import { Canvas as FabricCanvas, PencilBrush, Circle, Rect, IText, FabricImage } from "fabric";
+import { useEffect, useRef, forwardRef, useImperativeHandle, useCallback } from "react";
+import { Canvas as FabricCanvas, PencilBrush, Circle, Rect, IText, FabricImage, Path, Group } from "fabric";
 import { cn } from "@/lib/utils";
-import { ToolType, BrushPreset } from "./types";
+import { ToolType } from "./types";
+import { getSvgTemplate, SvgTemplate } from "./data/templateSvgs";
+import { toast } from "sonner";
+
+export interface SelectedRegion {
+  templateInstanceId: string;
+  regionId: string;
+  regionName: string;
+}
 
 export interface CanvasHandle {
   addShape: (type: 'rectangle' | 'circle') => void;
   addText: () => void;
   addImage: (url: string) => void;
+  addTemplate: (templateId: string) => void;
+  fillSelectedRegion: (color: string) => void;
   clear: () => void;
   undo: () => void;
   redo: () => void;
   exportCanvas: (format: 'png' | 'jpg' | 'svg') => void;
   setZoom: (zoom: number) => void;
+  getSelectedRegion: () => SelectedRegion | null;
+  clearRegionSelection: () => void;
 }
 
 interface StudioCanvasProps {
@@ -24,6 +36,7 @@ interface StudioCanvasProps {
   showGrid: boolean;
   showGuides: boolean;
   onReady?: () => void;
+  onRegionSelect?: (region: SelectedRegion | null) => void;
 }
 
 export const StudioCanvas = forwardRef<CanvasHandle, StudioCanvasProps>(({
@@ -36,11 +49,14 @@ export const StudioCanvas = forwardRef<CanvasHandle, StudioCanvasProps>(({
   showGrid,
   showGuides,
   onReady,
+  onRegionSelect,
 }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricRef = useRef<FabricCanvas | null>(null);
   const historyRef = useRef<string[]>([]);
   const historyIndexRef = useRef(-1);
+  const selectedRegionRef = useRef<SelectedRegion | null>(null);
+  const templateInstancesRef = useRef<Map<string, { group: Group; regions: Map<string, Path> }>>(new Map());
 
   // Initialize canvas
   useEffect(() => {
@@ -102,6 +118,146 @@ export const StudioCanvas = forwardRef<CanvasHandle, StudioCanvasProps>(({
     canvas.renderAll();
   }, [activeTool, activeColor, brushSize, brushOpacity]);
 
+  // Add template to canvas
+  const addTemplateToCanvas = useCallback((templateId: string) => {
+    const canvas = fabricRef.current;
+    if (!canvas) {
+      toast.error('Canvas not ready');
+      return;
+    }
+
+    const svgTemplate = getSvgTemplate(templateId);
+    if (!svgTemplate) {
+      toast.info(`Template "${templateId}" - SVG not available yet`);
+      return;
+    }
+
+    const instanceId = `template-${Date.now()}`;
+    const regions = new Map<string, Path>();
+    const pathObjects: Path[] = [];
+
+    // Create fabric Path objects for each region
+    svgTemplate.regions.forEach((region) => {
+      const path = new Path(region.pathData, {
+        fill: region.defaultColor,
+        stroke: '#333333',
+        strokeWidth: 1,
+        selectable: false,
+        evented: true,
+        objectCaching: false,
+      });
+
+      // Store region info in a custom property
+      (path as any).regionData = {
+        regionId: region.id,
+        regionName: region.name,
+        templateInstanceId: instanceId
+      };
+
+      pathObjects.push(path);
+      regions.set(region.id, path);
+    });
+
+    // Create a group from all paths
+    const group = new Group(pathObjects, {
+      left: (canvas.width || 800) / 2 - svgTemplate.width / 2,
+      top: (canvas.height || 1000) / 2 - svgTemplate.height / 2,
+      selectable: true,
+      hasControls: true,
+      hasBorders: true,
+      subTargetCheck: true,
+      interactive: true,
+    });
+
+    // Store instance ID on group
+    (group as any).templateInstanceId = instanceId;
+
+    // Add click handler for region selection
+    group.on('mousedown', (e) => {
+      if (e.subTargets && e.subTargets.length > 0) {
+        const clickedPath = e.subTargets[0] as Path;
+        const data = (clickedPath as any).regionData;
+        
+        if (data?.regionId) {
+          selectedRegionRef.current = {
+            templateInstanceId: instanceId,
+            regionId: data.regionId,
+            regionName: data.regionName
+          };
+
+          // Highlight selected region
+          regions.forEach((path, id) => {
+            path.set({
+              strokeWidth: id === data.regionId ? 3 : 1,
+              stroke: id === data.regionId ? '#d4af37' : '#333333'
+            });
+          });
+
+          group.dirty = true;
+          canvas.renderAll();
+          
+          onRegionSelect?.(selectedRegionRef.current);
+          toast.success(`Selected: ${data.regionName}`);
+        }
+      }
+    });
+
+    canvas.add(group);
+    canvas.setActiveObject(group);
+    canvas.renderAll();
+
+    // Store template instance
+    templateInstancesRef.current.set(instanceId, { group, regions });
+
+    toast.success(`${svgTemplate.name} added to canvas - Click regions to color them`);
+  }, [onRegionSelect]);
+
+  // Fill selected region with color
+  const fillRegion = useCallback((color: string) => {
+    const canvas = fabricRef.current;
+    const region = selectedRegionRef.current;
+    
+    if (!canvas || !region) {
+      toast.error('Please select a region first');
+      return;
+    }
+
+    const instance = templateInstancesRef.current.get(region.templateInstanceId);
+    if (!instance) return;
+
+    const path = instance.regions.get(region.regionId);
+    if (!path) return;
+
+    path.set({ fill: color });
+    instance.group.dirty = true;
+    canvas.renderAll();
+
+    toast.success(`Filled ${region.regionName}`);
+  }, []);
+
+  // Clear region selection
+  const clearRegionSelection = useCallback(() => {
+    const canvas = fabricRef.current;
+    const region = selectedRegionRef.current;
+    
+    if (!canvas || !region) return;
+
+    const instance = templateInstancesRef.current.get(region.templateInstanceId);
+    if (instance) {
+      instance.regions.forEach((path) => {
+        path.set({
+          strokeWidth: 1,
+          stroke: '#333333'
+        });
+      });
+      instance.group.dirty = true;
+      canvas.renderAll();
+    }
+
+    selectedRegionRef.current = null;
+    onRegionSelect?.(null);
+  }, [onRegionSelect]);
+
   // Expose methods via ref
   useImperativeHandle(ref, () => ({
     addShape: (type: 'rectangle' | 'circle') => {
@@ -162,11 +318,22 @@ export const StudioCanvas = forwardRef<CanvasHandle, StudioCanvasProps>(({
       });
     },
 
+    addTemplate: addTemplateToCanvas,
+
+    fillSelectedRegion: fillRegion,
+
+    getSelectedRegion: () => selectedRegionRef.current,
+
+    clearRegionSelection,
+
     clear: () => {
       const canvas = fabricRef.current;
       if (!canvas) return;
       canvas.clear();
       canvas.backgroundColor = '#ffffff';
+      templateInstancesRef.current.clear();
+      selectedRegionRef.current = null;
+      onRegionSelect?.(null);
       canvas.renderAll();
     },
 
@@ -219,7 +386,7 @@ export const StudioCanvas = forwardRef<CanvasHandle, StudioCanvasProps>(({
       if (!canvas) return;
       canvas.setZoom(zoom / 100);
     },
-  }));
+  }), [activeColor, addTemplateToCanvas, fillRegion, clearRegionSelection, onRegionSelect]);
 
   const downloadFile = (url: string, filename: string) => {
     const link = document.createElement('a');

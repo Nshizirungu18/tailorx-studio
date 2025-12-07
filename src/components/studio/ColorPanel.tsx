@@ -7,17 +7,20 @@ import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Palette, TrendingUp, Sparkles, Plus, Copy, Check } from "lucide-react";
+import { Palette, TrendingUp, Sparkles, Plus, Copy, Check, PaintBucket, Droplet } from "lucide-react";
 import { toast } from "sonner";
+import { SelectedRegion } from "./StudioCanvas";
 
 interface ColorPanelProps {
   activeColor: string;
   onColorChange: (color: string) => void;
+  selectedRegion?: SelectedRegion | null;
+  onFillRegion?: (color: string) => void;
 }
 
 type HarmonyType = 'complementary' | 'analogous' | 'triadic' | 'split';
 
-export function ColorPanel({ activeColor, onColorChange }: ColorPanelProps) {
+export function ColorPanel({ activeColor, onColorChange, selectedRegion, onFillRegion }: ColorPanelProps) {
   const [copiedColor, setCopiedColor] = useState<string | null>(null);
   const [customPalettes, setCustomPalettes] = useState<ColorPalette[]>([]);
   const [selectedHarmony, setSelectedHarmony] = useState<HarmonyType>('complementary');
@@ -27,6 +30,14 @@ export function ColorPanel({ activeColor, onColorChange }: ColorPanelProps) {
     setCopiedColor(color);
     toast.success(`Copied ${color}`);
     setTimeout(() => setCopiedColor(null), 2000);
+  };
+
+  const handleColorClick = (color: string) => {
+    onColorChange(color);
+    // If a region is selected, also fill it
+    if (selectedRegion && onFillRegion) {
+      onFillRegion(color);
+    }
   };
 
   const getHarmonyColors = () => {
@@ -52,7 +63,7 @@ export function ColorPanel({ activeColor, onColorChange }: ColorPanelProps) {
         {palette.colors.map((color, i) => (
           <button
             key={i}
-            onClick={() => onColorChange(color)}
+            onClick={() => handleColorClick(color)}
             onDoubleClick={() => copyColor(color)}
             className={cn(
               "flex-1 h-8 rounded transition-all hover:scale-105",
@@ -60,7 +71,7 @@ export function ColorPanel({ activeColor, onColorChange }: ColorPanelProps) {
               activeColor === color && "ring-2 ring-primary"
             )}
             style={{ backgroundColor: color }}
-            title={`${color} - Click to use, double-click to copy`}
+            title={`${color} - Click to ${selectedRegion ? 'fill region' : 'use'}, double-click to copy`}
           />
         ))}
       </div>
@@ -69,12 +80,33 @@ export function ColorPanel({ activeColor, onColorChange }: ColorPanelProps) {
 
   return (
     <div className="flex flex-col h-full">
+      {/* Selected Region Indicator */}
+      {selectedRegion && (
+        <div className="p-3 bg-primary/10 border-b border-primary/20">
+          <div className="flex items-center gap-2">
+            <PaintBucket className="w-4 h-4 text-primary" />
+            <div className="flex-1">
+              <p className="text-xs font-medium text-primary">Fill Mode Active</p>
+              <p className="text-xs text-muted-foreground">
+                Selected: <span className="font-medium text-foreground">{selectedRegion.regionName}</span>
+              </p>
+            </div>
+            <Droplet className="w-4 h-4 text-primary animate-pulse" />
+          </div>
+          <p className="text-xs text-muted-foreground mt-1">
+            Click any color to fill the selected region
+          </p>
+        </div>
+      )}
+
       {/* Current Color */}
       <div className="p-4 border-b border-border">
         <div className="flex items-center gap-3 mb-3">
           <div
-            className="w-12 h-12 rounded-lg border border-border shadow-lg"
+            className="w-12 h-12 rounded-lg border border-border shadow-lg cursor-pointer hover:scale-105 transition-transform"
             style={{ backgroundColor: activeColor }}
+            onClick={() => selectedRegion && onFillRegion?.(activeColor)}
+            title={selectedRegion ? "Click to fill selected region" : "Current color"}
           />
           <div className="flex-1">
             <Input
@@ -97,6 +129,19 @@ export function ColorPanel({ activeColor, onColorChange }: ColorPanelProps) {
             )}
           </Button>
         </div>
+
+        {/* Quick Fill Button */}
+        {selectedRegion && (
+          <Button 
+            variant="gold" 
+            size="sm" 
+            className="w-full mb-3 gap-2"
+            onClick={() => onFillRegion?.(activeColor)}
+          >
+            <PaintBucket className="w-4 h-4" />
+            Fill {selectedRegion.regionName}
+          </Button>
+        )}
 
         {/* Color Harmonies */}
         <div className="space-y-2">
@@ -123,10 +168,10 @@ export function ColorPanel({ activeColor, onColorChange }: ColorPanelProps) {
             {harmonyColors.map((color, i) => (
               <button
                 key={i}
-                onClick={() => onColorChange(color)}
+                onClick={() => handleColorClick(color)}
                 className="flex-1 h-8 rounded border border-border/20 transition-all hover:scale-105"
                 style={{ backgroundColor: color }}
-                title={color}
+                title={`${color} - Click to ${selectedRegion ? 'fill region' : 'use'}`}
               />
             ))}
           </div>
