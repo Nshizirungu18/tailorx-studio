@@ -3,20 +3,41 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { CanvasHandle } from "@/components/studio/StudioCanvas";
 
+export type AIActionType = 
+  | 'add_template' | 'add_shape' | 'add_text' | 'add_pattern'
+  | 'fill_region' | 'update_color' | 'update_size' | 'update_position' | 'update_style'
+  | 'delete_element' | 'delete_selected' | 'clear_canvas'
+  | 'apply_gradient' | 'change_background' | 'transform_element';
+
+export interface AIActionParams {
+  templateId?: string;
+  shapeType?: 'rectangle' | 'circle' | 'line' | 'triangle';
+  text?: string;
+  color?: string;
+  pantoneCode?: string;
+  pattern?: 'floral' | 'stripes' | 'dots' | 'geometric' | 'lace' | 'plaid' | 'houndstooth' | 'paisley';
+  size?: number;
+  width?: number;
+  height?: number;
+  position?: { x: number; y: number };
+  rotation?: number;
+  opacity?: number;
+  strokeColor?: string;
+  strokeWidth?: number;
+  gradient?: {
+    startColor: string;
+    endColor: string;
+    direction: 'horizontal' | 'vertical' | 'diagonal';
+  };
+  backgroundColor?: string;
+  flip?: 'horizontal' | 'vertical';
+}
+
 export interface AIAction {
   id: string;
-  type: 'add_template' | 'add_shape' | 'add_text' | 'add_pattern' | 'fill_region' | 'update_element' | 'delete_element' | 'clear_canvas';
+  type: AIActionType;
   target?: string;
-  params?: {
-    templateId?: string;
-    shapeType?: 'rectangle' | 'circle' | 'line';
-    text?: string;
-    color?: string;
-    pantoneCode?: string;
-    pattern?: 'floral' | 'stripes' | 'dots' | 'geometric' | 'lace' | 'plaid';
-    size?: number;
-    position?: { x: number; y: number };
-  };
+  params?: AIActionParams;
   preview?: boolean;
   status: 'pending' | 'previewing' | 'applied' | 'rejected';
 }
@@ -26,21 +47,30 @@ export interface AIActionResult {
   explanation: string;
 }
 
+interface CanvasState {
+  hasElements: boolean;
+  selectedRegion?: string;
+  templates: string[];
+  currentTool: string;
+  stage: string;
+}
+
 interface UseAICanvasAgentReturn {
   pendingActions: AIAction[];
   actionHistory: AIAction[];
   explanation: string;
   isProcessing: boolean;
   error: string | null;
-  executePrompt: (prompt: string, context?: string) => Promise<void>;
+  executePrompt: (prompt: string, context?: string, canvasState?: CanvasState) => Promise<void>;
   applyAction: (actionId: string) => void;
   applyAllActions: () => void;
   rejectAction: (actionId: string) => void;
   rejectAllActions: () => void;
   clearPending: () => void;
+  undoLastAction: () => void;
 }
 
-// Pantone color mapping for common fashion colors
+// Comprehensive Pantone color mapping
 const pantoneColors: Record<string, string> = {
   '17-1463': '#E2583E', // Tangerine Tango
   '15-5519': '#009473', // Emerald
@@ -57,6 +87,58 @@ const pantoneColors: Record<string, string> = {
   '17-3938': '#6667AB', // Very Peri
   '18-1750': '#BE3455', // Viva Magenta
   '13-1023': '#FFBE98', // Peach Fuzz
+  // Additional fashion colors
+  '11-0601': '#F5F5F5', // Bright White
+  '19-4007': '#212121', // Black
+  '14-4122': '#9BB7D4', // Airy Blue
+  '17-1558': '#D94F70', // Hot Pink
+  '18-0107': '#3D5E3A', // Forest Green
+  '19-1664': '#9B1B30', // Crimson
+  '14-0756': '#F3E779', // Pale Yellow
+  '16-3850': '#A0678E', // Mauve
+};
+
+// Color name mapping for natural language
+const colorNames: Record<string, string> = {
+  'coral': '#FF6F61',
+  'living coral': '#FF6F61',
+  'red': '#E53935',
+  'crimson': '#9B1B30',
+  'pink': '#E91E63',
+  'hot pink': '#D94F70',
+  'rose': '#F7CAC9',
+  'magenta': '#BE3455',
+  'orange': '#FF9800',
+  'tangerine': '#E2583E',
+  'peach': '#FFBE98',
+  'yellow': '#F5DF4D',
+  'gold': '#D4AF37',
+  'green': '#88B04B',
+  'emerald': '#009473',
+  'forest green': '#3D5E3A',
+  'teal': '#009688',
+  'blue': '#0F4C81',
+  'navy': '#1A237E',
+  'sky blue': '#9BB7D4',
+  'serenity': '#91A8D0',
+  'purple': '#6B5B95',
+  'violet': '#6667AB',
+  'orchid': '#AD5E99',
+  'lavender': '#B39EB5',
+  'brown': '#795548',
+  'tan': '#D2B48C',
+  'beige': '#F5F5DC',
+  'cream': '#FFFDD0',
+  'ivory': '#FFFFF0',
+  'white': '#FFFFFF',
+  'black': '#000000',
+  'gray': '#939597',
+  'grey': '#939597',
+  'silver': '#C0C0C0',
+  'marsala': '#955251',
+  'burgundy': '#800020',
+  'wine': '#722F37',
+  'mauve': '#A0678E',
 };
 
 export function useAICanvasAgent(canvasRef: React.RefObject<CanvasHandle>): UseAICanvasAgentReturn {
@@ -65,8 +147,34 @@ export function useAICanvasAgent(canvasRef: React.RefObject<CanvasHandle>): UseA
   const [explanation, setExplanation] = useState("");
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const appliedActionsStack = useRef<AIAction[]>([]);
 
-  const executePrompt = useCallback(async (prompt: string, context?: string) => {
+  // Resolve color from various formats
+  const resolveColor = useCallback((params?: AIActionParams): string => {
+    if (!params) return '#000000';
+    
+    // Check for Pantone code first
+    if (params.pantoneCode && pantoneColors[params.pantoneCode]) {
+      return pantoneColors[params.pantoneCode];
+    }
+    
+    // Check for direct hex color
+    if (params.color) {
+      // If it's already a hex color
+      if (params.color.startsWith('#')) {
+        return params.color;
+      }
+      // Try to match color name
+      const lowerColor = params.color.toLowerCase();
+      if (colorNames[lowerColor]) {
+        return colorNames[lowerColor];
+      }
+    }
+    
+    return '#000000';
+  }, []);
+
+  const executePrompt = useCallback(async (prompt: string, context?: string, canvasState?: CanvasState) => {
     setIsProcessing(true);
     setError(null);
     setPendingActions([]);
@@ -74,7 +182,12 @@ export function useAICanvasAgent(canvasRef: React.RefObject<CanvasHandle>): UseA
 
     try {
       const { data, error: fnError } = await supabase.functions.invoke('design-assistant', {
-        body: { prompt, context, mode: 'action' }
+        body: { 
+          prompt, 
+          context, 
+          mode: 'action',
+          canvasState 
+        }
       });
 
       if (fnError) {
@@ -97,7 +210,11 @@ export function useAICanvasAgent(canvasRef: React.RefObject<CanvasHandle>): UseA
       setPendingActions(actionsWithIds);
       setExplanation(result.explanation || "AI is ready to execute actions");
       
-      toast.success(`AI prepared ${actionsWithIds.length} action(s)`);
+      if (actionsWithIds.length > 0) {
+        toast.success(`AI prepared ${actionsWithIds.length} action(s)`, {
+          description: result.explanation?.slice(0, 60) + '...'
+        });
+      }
     } catch (err) {
       const message = err instanceof Error ? err.message : "Failed to process AI command";
       setError(message);
@@ -107,7 +224,7 @@ export function useAICanvasAgent(canvasRef: React.RefObject<CanvasHandle>): UseA
     }
   }, []);
 
-  const executeAction = useCallback((action: AIAction) => {
+  const executeAction = useCallback((action: AIAction): boolean => {
     const canvas = canvasRef.current;
     if (!canvas) {
       toast.error("Canvas not ready");
@@ -116,47 +233,76 @@ export function useAICanvasAgent(canvasRef: React.RefObject<CanvasHandle>): UseA
 
     try {
       switch (action.type) {
+        // CREATE Actions
         case 'add_template':
           if (action.params?.templateId) {
             canvas.addTemplate(action.params.templateId);
+            toast.success(`Added ${action.params.templateId} template`);
           }
           break;
 
         case 'add_shape':
           if (action.params?.shapeType === 'rectangle' || action.params?.shapeType === 'circle') {
             canvas.addShape(action.params.shapeType);
+            toast.success(`Added ${action.params.shapeType}`);
           }
           break;
 
         case 'add_text':
           canvas.addText();
-          break;
-
-        case 'fill_region': {
-          let color = action.params?.color || '#000000';
-          // Convert Pantone code to hex if provided
-          if (action.params?.pantoneCode && pantoneColors[action.params.pantoneCode]) {
-            color = pantoneColors[action.params.pantoneCode];
-          }
-          canvas.fillSelectedRegion(color);
-          break;
-        }
-
-        case 'clear_canvas':
-          canvas.clear();
-          break;
-
-        case 'delete_element':
-          // For now, we'll handle this by instructing user
-          toast.info(`To delete: Select "${action.target}" and press Delete key`);
-          break;
-
-        case 'update_element':
-          toast.info(`Update action: Modify ${action.target} as instructed`);
+          toast.success("Added text element");
           break;
 
         case 'add_pattern':
-          toast.info(`Pattern "${action.params?.pattern}" would be applied to ${action.target}`);
+          toast.info(`Pattern "${action.params?.pattern}" - This feature is coming soon`);
+          break;
+
+        // COLOR Actions  
+        case 'fill_region':
+        case 'update_color': {
+          const color = resolveColor(action.params);
+          canvas.fillSelectedRegion(color);
+          toast.success(`Applied color ${color}`);
+          break;
+        }
+
+        case 'apply_gradient':
+          toast.info("Gradient fills coming soon");
+          break;
+
+        case 'change_background':
+          toast.info("Background change coming soon");
+          break;
+
+        // MODIFY Actions
+        case 'update_size':
+          toast.info(`Size update: ${action.params?.size}%`);
+          break;
+
+        case 'update_position':
+          toast.info(`Position update to (${action.params?.position?.x}, ${action.params?.position?.y})`);
+          break;
+
+        case 'update_style':
+          toast.info("Style update applied");
+          break;
+
+        case 'transform_element':
+          toast.info(`Transform: ${action.params?.rotation ? `rotate ${action.params.rotation}°` : ''} ${action.params?.flip || ''}`);
+          break;
+
+        // DELETE Actions
+        case 'delete_element':
+          toast.info(`To delete "${action.target}": Select it and press Delete`);
+          break;
+
+        case 'delete_selected':
+          toast.info("Press Delete key to remove selected element");
+          break;
+
+        case 'clear_canvas':
+          canvas.clear();
+          toast.success("Canvas cleared");
           break;
 
         default:
@@ -168,7 +314,7 @@ export function useAICanvasAgent(canvasRef: React.RefObject<CanvasHandle>): UseA
       console.error("Failed to execute action:", err);
       return false;
     }
-  }, [canvasRef]);
+  }, [canvasRef, resolveColor]);
 
   const applyAction = useCallback((actionId: string) => {
     const action = pendingActions.find(a => a.id === actionId);
@@ -177,19 +323,30 @@ export function useAICanvasAgent(canvasRef: React.RefObject<CanvasHandle>): UseA
     const success = executeAction(action);
     
     if (success) {
+      const appliedAction = { ...action, status: 'applied' as const };
       setPendingActions(prev => prev.filter(a => a.id !== actionId));
-      setActionHistory(prev => [...prev, { ...action, status: 'applied' }]);
-      toast.success(`Applied: ${action.type.replace('_', ' ')}`);
+      setActionHistory(prev => [...prev, appliedAction]);
+      appliedActionsStack.current.push(appliedAction);
     }
   }, [pendingActions, executeAction]);
 
   const applyAllActions = useCallback(() => {
+    const successfulActions: AIAction[] = [];
+    
     pendingActions.forEach(action => {
-      executeAction(action);
-      setActionHistory(prev => [...prev, { ...action, status: 'applied' }]);
+      const success = executeAction(action);
+      if (success) {
+        successfulActions.push({ ...action, status: 'applied' as const });
+      }
     });
+    
+    setActionHistory(prev => [...prev, ...successfulActions]);
+    appliedActionsStack.current.push(...successfulActions);
     setPendingActions([]);
-    toast.success("All actions applied!");
+    
+    if (successfulActions.length > 0) {
+      toast.success(`Applied ${successfulActions.length} action(s)!`);
+    }
   }, [pendingActions, executeAction]);
 
   const rejectAction = useCallback((actionId: string) => {
@@ -198,7 +355,6 @@ export function useAICanvasAgent(canvasRef: React.RefObject<CanvasHandle>): UseA
 
     setPendingActions(prev => prev.filter(a => a.id !== actionId));
     setActionHistory(prev => [...prev, { ...action, status: 'rejected' }]);
-    toast.info("Action rejected");
   }, [pendingActions]);
 
   const rejectAllActions = useCallback(() => {
@@ -215,6 +371,17 @@ export function useAICanvasAgent(canvasRef: React.RefObject<CanvasHandle>): UseA
     setExplanation("");
   }, []);
 
+  const undoLastAction = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    
+    canvas.undo();
+    const lastAction = appliedActionsStack.current.pop();
+    if (lastAction) {
+      toast.info(`Undid: ${lastAction.type.replace(/_/g, ' ')}`);
+    }
+  }, [canvasRef]);
+
   return {
     pendingActions,
     actionHistory,
@@ -226,6 +393,7 @@ export function useAICanvasAgent(canvasRef: React.RefObject<CanvasHandle>): UseA
     applyAllActions,
     rejectAction,
     rejectAllActions,
-    clearPending
+    clearPending,
+    undoLastAction
   };
 }

@@ -11,103 +11,198 @@ serve(async (req) => {
   }
 
   try {
-    const { prompt, context, mode = "suggest" } = await req.json();
+    const { prompt, context, mode = "suggest", canvasState } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     
     if (!LOVABLE_API_KEY) {
       throw new Error("LOVABLE_API_KEY is not configured");
     }
 
-    // Build system prompt based on mode
+    // Build comprehensive system prompt for full canvas control
     const systemPrompt = mode === "action" 
-      ? `You are Chromatique AI, a fashion design assistant with DIRECT CONTROL over a design canvas. You can execute actions on the canvas based on user instructions.
+      ? `You are Chromatique AI, a professional fashion design assistant with FULL CONTROL over a design canvas. You can CREATE, MODIFY, DELETE, and COLOR any element on the canvas based on user instructions.
 
-Available garment parts you can reference:
+## CANVAS CAPABILITIES
+
+### Templates You Can Add:
+- croquis-female: Female fashion figure
+- croquis-male: Male fashion figure  
+- basic-dress: A-line dress silhouette
+- fitted-top: Fitted blouse/top
+- wide-pants: Wide-leg trousers
+- jacket: Blazer/jacket
+- skirt: A-line skirt
+
+### Shapes You Can Add:
+- rectangle: Rectangular shape
+- circle: Circular shape
+- line: Straight line
+- triangle: Triangle shape
+
+### Garment Regions You Can Fill:
 - bodice, sleeves, collar, neckline (for tops/dresses)
-- skirt, hem, waistband (for dresses/skirts)
-- lapel, pocket, cuff (for outerwear)
-- entire garment (for whole-piece actions)
+- skirt, hem, waistband, train (for dresses/skirts)
+- lapel, pocket, cuff, button (for outerwear)
+- front-panel, back-panel, side-panel (for structured garments)
 
-You can perform these actions:
-1. ADD elements: templates, shapes, text, patterns
-2. DELETE elements: remove selected or specified elements
-3. UPDATE elements: change color, size, position, style
-4. FILL regions: apply colors to garment parts
+### Pantone Colors Available:
+- 17-1463 (Tangerine Tango - #E2583E)
+- 15-5519 (Emerald - #009473)
+- 18-3224 (Radiant Orchid - #AD5E99)
+- 18-1438 (Marsala - #955251)
+- 15-3919 (Serenity - #91A8D0)
+- 13-1520 (Rose Quartz - #F7CAC9)
+- 15-0343 (Greenery - #88B04B)
+- 18-3838 (Ultra Violet - #6B5B95)
+- 16-1546 (Living Coral - #FF6F61)
+- 19-4052 (Classic Blue - #0F4C81)
+- 17-5104 (Ultimate Gray - #939597)
+- 13-0647 (Illuminating Yellow - #F5DF4D)
+- 17-3938 (Very Peri - #6667AB)
+- 18-1750 (Viva Magenta - #BE3455)
+- 13-1023 (Peach Fuzz - #FFBE98)
 
-When users give instructions like:
-- "Add a floral pattern to the skirt" → add_pattern action
-- "Change bodice to Pantone 17-1463" → fill_region action
-- "Delete the sleeve" → delete_element action
-- "Make the dress wider" → update_element action
+## ACTIONS YOU CAN PERFORM
 
-Always respond with specific, executable actions. Be creative but precise.
+1. **CREATE/ADD Elements:**
+   - add_template: Add a garment template to the canvas
+   - add_shape: Add geometric shapes
+   - add_text: Add text labels/annotations
+   - add_pattern: Apply pattern/texture overlays
 
-Current canvas context: ${context || "Empty canvas"}` 
-      : `You are Chromatique AI, an expert fashion design assistant integrated into a professional design studio. You help designers with:
+2. **MODIFY/UPDATE Elements:**
+   - update_color: Change the color of an element or region
+   - update_size: Resize an element (scale percentage)
+   - update_position: Move an element
+   - update_style: Change stroke, opacity, etc.
+   - transform_element: Rotate, flip, or skew
 
-1. **Color Suggestions**: Recommend Pantone colors, color harmonies, and seasonal palettes.
-2. **Style Recommendations**: Suggest silhouette adjustments, proportions, and design details.
-3. **Technical Details**: Advise on construction methods, fabric choices, and finishing touches.
-4. **Design Tips**: Share professional tips for sketching, rendering fabrics, and presenting designs.
+3. **DELETE/REMOVE Elements:**
+   - delete_element: Remove a specific element
+   - delete_selected: Remove currently selected element
+   - clear_canvas: Clear entire canvas
 
-Always respond with 3-5 actionable suggestions.
+4. **COLOR Operations:**
+   - fill_region: Fill a garment region with color
+   - apply_gradient: Apply gradient fill
+   - change_background: Change canvas background
 
-Current design context: ${context || "General fashion design workspace"}`;
+## RESPONSE RULES
+
+- Generate MULTIPLE actions when needed to complete complex requests
+- Use Pantone codes when colors are requested professionally
+- Be CREATIVE but precise with color choices
+- Always explain what you're doing in the explanation field
+- For ambiguous requests, make sensible design choices
+- When creating new designs, start with a template then add colors
+
+## CURRENT CANVAS STATE
+${canvasState ? JSON.stringify(canvasState) : "Empty canvas - ready for design"}
+
+## CONTEXT
+${context || "Fresh design session"}`
+      : `You are Chromatique AI, an expert fashion design assistant. Provide creative, actionable design suggestions.
+
+Categories of advice:
+1. **Color**: Pantone recommendations, color harmonies, seasonal palettes
+2. **Style**: Silhouettes, proportions, design details
+3. **Detail**: Construction, fabric choices, finishing touches
+4. **Tip**: Professional techniques and presentation advice
+
+Current context: ${context || "General fashion design workspace"}`;
 
     // Build request body
     const body: Record<string, unknown> = {
       model: "google/gemini-2.5-flash",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: prompt || "Give me general design suggestions." },
+        { role: "user", content: prompt || "Give me design suggestions." },
       ],
     };
 
-    // Add tool calling for action mode
+    // Enhanced tool calling for action mode with full canvas control
     if (mode === "action") {
       body.tools = [
         {
           type: "function",
           function: {
             name: "execute_canvas_actions",
-            description: "Execute one or more actions on the design canvas",
+            description: "Execute one or more actions on the design canvas to create, modify, delete, or color elements",
             parameters: {
               type: "object",
               properties: {
                 actions: {
                   type: "array",
-                  description: "List of actions to execute on the canvas",
+                  description: "List of actions to execute on the canvas in sequence",
                   items: {
                     type: "object",
                     properties: {
                       type: {
                         type: "string",
-                        enum: ["add_template", "add_shape", "add_text", "add_pattern", "fill_region", "update_element", "delete_element", "clear_canvas"],
-                        description: "The type of action to perform"
+                        enum: [
+                          "add_template", "add_shape", "add_text", "add_pattern",
+                          "fill_region", "update_color", "update_size", "update_position", "update_style",
+                          "delete_element", "delete_selected", "clear_canvas",
+                          "apply_gradient", "change_background", "transform_element"
+                        ],
+                        description: "The type of action to perform on the canvas"
                       },
                       target: {
                         type: "string",
-                        description: "Target element or region (e.g., 'bodice', 'sleeves', 'selected', 'all')"
+                        description: "Target element, region, or 'selected' for current selection, 'all' for everything"
                       },
                       params: {
                         type: "object",
                         properties: {
-                          templateId: { type: "string", description: "Template ID for add_template" },
-                          shapeType: { type: "string", enum: ["rectangle", "circle", "line"] },
-                          text: { type: "string", description: "Text content for add_text" },
-                          color: { type: "string", description: "Color value (hex or Pantone name)" },
-                          pantoneCode: { type: "string", description: "Pantone color code" },
-                          pattern: { type: "string", enum: ["floral", "stripes", "dots", "geometric", "lace", "plaid"] },
-                          size: { type: "number", description: "Size adjustment percentage" },
+                          templateId: { 
+                            type: "string", 
+                            enum: ["croquis-female", "croquis-male", "basic-dress", "fitted-top", "wide-pants", "jacket", "skirt"],
+                            description: "Template ID for add_template action" 
+                          },
+                          shapeType: { 
+                            type: "string", 
+                            enum: ["rectangle", "circle", "line", "triangle"],
+                            description: "Shape type for add_shape action"
+                          },
+                          text: { type: "string", description: "Text content for add_text action" },
+                          color: { type: "string", description: "Hex color value (e.g., #FF6F61)" },
+                          pantoneCode: { 
+                            type: "string", 
+                            description: "Pantone color code (e.g., 16-1546 for Living Coral)" 
+                          },
+                          pattern: { 
+                            type: "string", 
+                            enum: ["floral", "stripes", "dots", "geometric", "lace", "plaid", "houndstooth", "paisley"],
+                            description: "Pattern type for add_pattern action"
+                          },
+                          size: { 
+                            type: "number", 
+                            description: "Size as percentage (100 = original, 150 = 50% larger)" 
+                          },
+                          width: { type: "number", description: "Width in pixels" },
+                          height: { type: "number", description: "Height in pixels" },
                           position: { 
                             type: "object",
-                            properties: { x: { type: "number" }, y: { type: "number" } }
-                          }
+                            properties: { 
+                              x: { type: "number", description: "X coordinate" }, 
+                              y: { type: "number", description: "Y coordinate" } 
+                            }
+                          },
+                          rotation: { type: "number", description: "Rotation angle in degrees" },
+                          opacity: { type: "number", description: "Opacity from 0 to 100" },
+                          strokeColor: { type: "string", description: "Stroke/outline color" },
+                          strokeWidth: { type: "number", description: "Stroke width in pixels" },
+                          gradient: {
+                            type: "object",
+                            properties: {
+                              startColor: { type: "string" },
+                              endColor: { type: "string" },
+                              direction: { type: "string", enum: ["horizontal", "vertical", "diagonal"] }
+                            }
+                          },
+                          backgroundColor: { type: "string", description: "Canvas background color" },
+                          flip: { type: "string", enum: ["horizontal", "vertical"] }
                         }
-                      },
-                      preview: {
-                        type: "boolean",
-                        description: "If true, show preview before applying"
                       }
                     },
                     required: ["type"]
@@ -115,7 +210,7 @@ Current design context: ${context || "General fashion design workspace"}`;
                 },
                 explanation: {
                   type: "string",
-                  description: "Brief explanation of what the actions will do"
+                  description: "Clear, concise explanation of what the actions will accomplish for the design"
                 }
               },
               required: ["actions", "explanation"]
@@ -125,7 +220,7 @@ Current design context: ${context || "General fashion design workspace"}`;
       ];
       body.tool_choice = { type: "function", function: { name: "execute_canvas_actions" } };
     } else {
-      // Suggestion mode - use structured output
+      // Suggestion mode
       body.tools = [
         {
           type: "function",
@@ -156,7 +251,7 @@ Current design context: ${context || "General fashion design workspace"}`;
       body.tool_choice = { type: "function", function: { name: "provide_suggestions" } };
     }
 
-    console.log("Calling AI gateway with mode:", mode);
+    console.log("Calling AI gateway with mode:", mode, "prompt:", prompt);
 
     const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
       method: "POST",
@@ -186,13 +281,14 @@ Current design context: ${context || "General fashion design workspace"}`;
     }
 
     const data = await response.json();
-    console.log("AI response:", JSON.stringify(data, null, 2));
+    console.log("AI response received");
 
     // Extract tool call result
     const toolCall = data.choices?.[0]?.message?.tool_calls?.[0];
     
     if (toolCall?.function?.arguments) {
       const result = JSON.parse(toolCall.function.arguments);
+      console.log("Parsed actions:", JSON.stringify(result, null, 2));
       return new Response(JSON.stringify(result), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
