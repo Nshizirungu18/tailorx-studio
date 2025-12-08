@@ -65,7 +65,7 @@ export default function Studio() {
   ]);
   const [activeLayerId, setActiveLayerId] = useState('sketch');
 
-  // AI Canvas Agent
+  // AI Canvas Agent with full canvas control
   const {
     pendingActions,
     actionHistory,
@@ -76,17 +76,30 @@ export default function Studio() {
     applyAllActions,
     rejectAction,
     rejectAllActions,
+    undoLastAction,
   } = useAICanvasAgent(canvasRef);
 
-  // Build canvas context for AI
+  // Build comprehensive canvas context for AI
   const getCanvasContext = () => {
     const parts = [];
     if (selectedRegion) {
       parts.push(`Selected region: ${selectedRegion.regionName}`);
     }
-    parts.push(`Current stage: ${currentStage}`);
+    parts.push(`Current workflow stage: ${currentStage}`);
     parts.push(`Active tool: ${activeTool}`);
+    parts.push(`Layers: ${layers.length}`);
     return parts.join('. ');
+  };
+
+  // Handle AI prompt execution with canvas state
+  const handleExecutePrompt = (prompt: string) => {
+    executePrompt(prompt, getCanvasContext(), {
+      hasElements: layers.length > 2,
+      selectedRegion: selectedRegion?.regionName,
+      templates: [],
+      currentTool: activeTool,
+      stage: currentStage
+    });
   };
 
   const handleZoomIn = () => {
@@ -321,11 +334,12 @@ export default function Studio() {
                   actionHistory={actionHistory}
                   explanation={explanation}
                   isProcessing={isProcessing}
-                  onExecutePrompt={(prompt) => executePrompt(prompt, getCanvasContext())}
+                  onExecutePrompt={handleExecutePrompt}
                   onApplyAction={applyAction}
                   onApplyAllActions={applyAllActions}
                   onRejectAction={rejectAction}
                   onRejectAllActions={rejectAllActions}
+                  onUndoLastAction={undoLastAction}
                 />
               )}
               {activeRightTab === 'edit' && (
