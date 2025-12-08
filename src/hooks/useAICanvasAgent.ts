@@ -261,7 +261,30 @@ export function useAICanvasAgent(canvasRef: React.RefObject<CanvasHandle>): UseA
         case 'fill_region':
         case 'update_color': {
           const color = resolveColor(action.params);
-          canvas.fillSelectedRegion(color);
+          // If target specifies templateId and regionId, use direct access
+          if (action.target && action.target.includes(':')) {
+            const [templateId, regionId] = action.target.split(':');
+            canvas.fillRegionById(templateId, regionId, color);
+          } else if (action.target) {
+            // Try to select the region first, then fill
+            const elements = canvas.getElements();
+            const template = elements.find(el => el.type === 'template');
+            if (template && template.colorAreas) {
+              // Find matching region name
+              const regionId = Object.keys(template.colorAreas).find(
+                r => r.toLowerCase().includes(action.target!.toLowerCase())
+              );
+              if (regionId) {
+                canvas.fillRegionById(template.id, regionId, color);
+              } else {
+                canvas.fillSelectedRegion(color);
+              }
+            } else {
+              canvas.fillSelectedRegion(color);
+            }
+          } else {
+            canvas.fillSelectedRegion(color);
+          }
           toast.success(`Applied color ${color}`);
           break;
         }
@@ -270,17 +293,40 @@ export function useAICanvasAgent(canvasRef: React.RefObject<CanvasHandle>): UseA
           toast.info("Gradient fills coming soon");
           break;
 
-        case 'change_background':
-          toast.info("Background change coming soon");
+        case 'change_background': {
+          const bgColor = resolveColor(action.params);
+          canvas.setBackgroundColor(bgColor);
           break;
+        }
 
         // MODIFY Actions
         case 'update_size':
-          toast.info(`Size update: ${action.params?.size}%`);
+          if (action.target) {
+            const elements = canvas.getElements();
+            const element = elements.find(el => 
+              el.id === action.target || el.type === action.target
+            );
+            if (element) {
+              canvas.updateElement(element.id, {
+                size: { 
+                  width: action.params?.width || (element.size?.width || 100) * ((action.params?.size || 100) / 100),
+                  height: action.params?.height || (element.size?.height || 100) * ((action.params?.size || 100) / 100)
+                }
+              });
+              toast.success("Size updated");
+            }
+          } else {
+            toast.info(`Size update: ${action.params?.size}%`);
+          }
           break;
 
         case 'update_position':
-          toast.info(`Position update to (${action.params?.position?.x}, ${action.params?.position?.y})`);
+          if (action.target && action.params?.position) {
+            canvas.updateElement(action.target, { position: action.params.position });
+            toast.success("Position updated");
+          } else {
+            toast.info(`Position update to (${action.params?.position?.x}, ${action.params?.position?.y})`);
+          }
           break;
 
         case 'update_style':
@@ -293,11 +339,15 @@ export function useAICanvasAgent(canvasRef: React.RefObject<CanvasHandle>): UseA
 
         // DELETE Actions
         case 'delete_element':
-          toast.info(`To delete "${action.target}": Select it and press Delete`);
+          if (action.target) {
+            canvas.deleteElement(action.target);
+          } else {
+            toast.info("Select an element to delete");
+          }
           break;
 
         case 'delete_selected':
-          toast.info("Press Delete key to remove selected element");
+          canvas.deleteSelected();
           break;
 
         case 'clear_canvas':
