@@ -47,10 +47,16 @@ export interface AIActionResult {
   explanation: string;
 }
 
+interface TemplateInfo {
+  instanceId: string;
+  templateType: string;
+  regions: string[];
+}
+
 interface CanvasState {
   hasElements: boolean;
   selectedRegion?: string;
-  templates: string[];
+  templates: TemplateInfo[];
   currentTool: string;
   stage: string;
 }
@@ -261,21 +267,37 @@ export function useAICanvasAgent(canvasRef: React.RefObject<CanvasHandle>): UseA
         case 'fill_region':
         case 'update_color': {
           const color = resolveColor(action.params);
-          // If target specifies templateId and regionId, use direct access
+          // If target specifies templateInstanceId:regionId, use direct access
           if (action.target && action.target.includes(':')) {
-            const [templateId, regionId] = action.target.split(':');
-            canvas.fillRegionById(templateId, regionId, color);
+            const [templateInstanceId, regionId] = action.target.split(':');
+            canvas.fillRegionById(templateInstanceId, regionId, color);
           } else if (action.target) {
-            // Try to select the region first, then fill
+            // Target is a region name - find the most recent template and match region
             const elements = canvas.getElements();
-            const template = elements.find(el => el.type === 'template');
-            if (template && template.colorAreas) {
-              // Find matching region name
-              const regionId = Object.keys(template.colorAreas).find(
-                r => r.toLowerCase().includes(action.target!.toLowerCase())
-              );
-              if (regionId) {
-                canvas.fillRegionById(template.id, regionId, color);
+            const templates = elements.filter(el => el.type === 'template');
+            
+            if (templates.length > 0) {
+              // Use the most recently added template (last in array)
+              const latestTemplate = templates[templates.length - 1];
+              
+              if (latestTemplate.colorAreas) {
+                // Find matching region by name (case-insensitive, partial match)
+                const targetLower = action.target.toLowerCase().replace(/[-_\s]/g, '');
+                const regionId = Object.keys(latestTemplate.colorAreas).find(r => {
+                  const regionLower = r.toLowerCase().replace(/[-_\s]/g, '');
+                  return regionLower.includes(targetLower) || targetLower.includes(regionLower);
+                });
+                
+                if (regionId) {
+                  canvas.fillRegionById(latestTemplate.id, regionId, color);
+                  toast.success(`Filled ${regionId} with ${color}`);
+                } else {
+                  // Try to fill by partial match on region names
+                  const allRegions = Object.keys(latestTemplate.colorAreas);
+                  console.log(`No exact match for "${action.target}", available regions:`, allRegions);
+                  // Fall back to selected region
+                  canvas.fillSelectedRegion(color);
+                }
               } else {
                 canvas.fillSelectedRegion(color);
               }
@@ -283,9 +305,9 @@ export function useAICanvasAgent(canvasRef: React.RefObject<CanvasHandle>): UseA
               canvas.fillSelectedRegion(color);
             }
           } else {
+            // No target specified - fill selected region
             canvas.fillSelectedRegion(color);
           }
-          toast.success(`Applied color ${color}`);
           break;
         }
 

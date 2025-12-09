@@ -93,10 +93,20 @@ export default function Studio() {
 
   // Handle AI prompt execution with canvas state
   const handleExecutePrompt = (prompt: string) => {
+    // Get actual templates on canvas
+    const elements = canvasRef.current?.getElements() || [];
+    const templateInfos = elements
+      .filter(el => el.type === 'template')
+      .map(el => ({
+        instanceId: el.id,
+        templateType: el.id.replace(/^template-\d+-/, ''),
+        regions: el.colorAreas ? Object.keys(el.colorAreas) : []
+      }));
+
     executePrompt(prompt, getCanvasContext(), {
-      hasElements: layers.length > 2,
+      hasElements: elements.length > 0,
       selectedRegion: selectedRegion?.regionName,
-      templates: [],
+      templates: templateInfos,
       currentTool: activeTool,
       stage: currentStage
     });
