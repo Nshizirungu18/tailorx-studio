@@ -12,41 +12,51 @@ import { LayersPanel } from "@/components/studio/LayersPanel";
 import { AIAssistantPanel } from "@/components/studio/AIAssistantPanel";
 import { PhotoEditPanel } from "@/components/studio/PhotoEditPanel";
 import { ExportPanel } from "@/components/studio/ExportPanel";
+import { SavedDesignsPanel } from "@/components/studio/SavedDesignsPanel";
 import { StudioCanvas, CanvasHandle, SelectedRegion } from "@/components/studio/StudioCanvas";
 import { useAICanvasAgent } from "@/hooks/useAICanvasAgent";
+import { useDesignStorage } from "@/hooks/useDesignStorage";
+import { useAuth } from "@/contexts/AuthContext";
+import { Json } from "@/integrations/supabase/types";
 import {
   Undo, Redo, ZoomIn, ZoomOut, Grid3X3, Ruler, Save, Download, Wand2,
-  Palette, PenTool, Sparkles, ImageIcon, Layers, X,
+  Palette, PenTool, Sparkles, ImageIcon, Layers, X, Folder, Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 
 const rightPanelTabs = {
   color: [
     { id: 'colors', label: 'Colors', icon: Palette },
+    { id: 'designs', label: 'Designs', icon: Folder },
     { id: 'ai', label: 'AI', icon: Wand2 },
   ],
   sketch: [
     { id: 'templates', label: 'Templates', icon: PenTool },
     { id: 'colors', label: 'Colors', icon: Palette },
+    { id: 'designs', label: 'Designs', icon: Folder },
     { id: 'layers', label: 'Layers', icon: Layers },
   ],
   detail: [
     { id: 'brushes', label: 'Brushes', icon: Sparkles },
     { id: 'colors', label: 'Colors', icon: Palette },
+    { id: 'designs', label: 'Designs', icon: Folder },
     { id: 'layers', label: 'Layers', icon: Layers },
   ],
   refine: [
     { id: 'edit', label: 'Edit', icon: ImageIcon },
+    { id: 'designs', label: 'Designs', icon: Folder },
     { id: 'ai', label: 'AI', icon: Wand2 },
   ],
   present: [
     { id: 'export', label: 'Export', icon: Download },
+    { id: 'designs', label: 'Designs', icon: Folder },
     { id: 'layers', label: 'Layers', icon: Layers },
   ],
 };
 
 export default function Studio() {
   const canvasRef = useRef<CanvasHandle>(null);
+  const { user } = useAuth();
   const [currentStage, setCurrentStage] = useState<WorkflowStage>('sketch');
   const [activeTool, setActiveTool] = useState<ToolType>('pencil');
   const [activeColor, setActiveColor] = useState('#1a1a1a');
@@ -78,6 +88,31 @@ export default function Studio() {
     rejectAllActions,
     undoLastAction,
   } = useAICanvasAgent(canvasRef);
+
+  // Cloud save
+  const { saveDesign, isSaving, currentDesignName, createNewDesign } = useDesignStorage();
+
+  const handleSaveDesign = async () => {
+    if (!user) {
+      toast.error('Please sign in to save designs');
+      return;
+    }
+    const canvasData = canvasRef.current?.getCanvasJSON();
+    if (canvasData) {
+      await saveDesign(canvasData as Json);
+    }
+  };
+
+  const handleLoadDesign = async (canvasData: Json) => {
+    if (canvasData && typeof canvasData === 'object') {
+      await canvasRef.current?.loadFromJSON(canvasData as object);
+    }
+  };
+
+  const handleNewDesign = () => {
+    createNewDesign();
+    canvasRef.current?.clear();
+  };
 
   // Build comprehensive canvas context for AI
   const getCanvasContext = () => {
@@ -213,8 +248,8 @@ export default function Studio() {
               <Ruler className="w-4 h-4" />
             </Button>
             <div className="h-6 w-px bg-border mx-1" />
-            <Button variant="ghost" size="icon" onClick={() => toast.success("Design saved!")}>
-              <Save className="w-4 h-4" />
+            <Button variant="ghost" size="icon" onClick={handleSaveDesign} disabled={isSaving}>
+              {isSaving ? <Loader2 className="w-4 h-4 animate-spin" /> : <Save className="w-4 h-4" />}
             </Button>
             <Button variant="gold" size="sm" className="gap-2" onClick={() => setCurrentStage('present')}>
               <Download className="w-4 h-4" />
@@ -300,6 +335,12 @@ export default function Studio() {
                   onBrushOpacityChange={setBrushOpacity}
                   brushHardness={brushHardness}
                   onBrushHardnessChange={setBrushHardness}
+                />
+              )}
+              {activeRightTab === 'designs' && (
+                <SavedDesignsPanel
+                  onLoadDesign={handleLoadDesign}
+                  onNewDesign={handleNewDesign}
                 />
               )}
               {activeRightTab === 'layers' && (

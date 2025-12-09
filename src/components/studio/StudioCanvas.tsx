@@ -45,6 +45,9 @@ export interface CanvasHandle {
   selectElement: (id: string) => void;
   selectRegion: (templateId: string, regionId: string) => void;
   setBackgroundColor: (color: string) => void;
+  // Cloud save methods
+  getCanvasJSON: () => object;
+  loadFromJSON: (json: object) => Promise<void>;
 }
 
 interface StudioCanvasProps {
@@ -653,6 +656,24 @@ export const StudioCanvas = forwardRef<CanvasHandle, StudioCanvasProps>(({
       const canvas = fabricRef.current;
       if (!canvas) return;
       canvas.setZoom(zoom / 100);
+    },
+
+    getCanvasJSON: () => {
+      const canvas = fabricRef.current;
+      if (!canvas) return {};
+      return canvas.toJSON();
+    },
+
+    loadFromJSON: async (json: object) => {
+      const canvas = fabricRef.current;
+      if (!canvas) return;
+      
+      // Clear existing template instances
+      templateInstancesRef.current.clear();
+      selectedRegionRef.current = null;
+      
+      await canvas.loadFromJSON(json);
+      canvas.renderAll();
     },
   }), [activeColor, addTemplateToCanvas, fillRegion, fillRegionById, clearRegionSelection, 
       getElements, getElementById, updateElement, deleteElement, deleteSelected, 
