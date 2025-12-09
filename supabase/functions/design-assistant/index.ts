@@ -98,9 +98,20 @@ serve(async (req) => {
 - Always explain what you're doing in the explanation field
 - For ambiguous requests, make sensible design choices
 - When creating new designs, start with a template then add colors
+- For fill_region actions, use the region ID as the target (e.g., "bodice", "skirt", "left-sleeve")
+- If the user asks to color a region, just specify the region name in target - the system will find the correct template
 
 ## CURRENT CANVAS STATE
-${canvasState ? JSON.stringify(canvasState) : "Empty canvas - ready for design"}
+${canvasState ? `
+Templates on canvas: ${canvasState.templates?.length > 0 
+  ? canvasState.templates.map((t: { instanceId: string; templateType: string; regions: string[] }) => 
+      `\n  - Instance: ${t.instanceId}, Type: ${t.templateType}, Regions: [${t.regions.join(', ')}]`
+    ).join('')
+  : 'None - add a template first'}
+Selected region: ${canvasState.selectedRegion || 'None'}
+Current tool: ${canvasState.currentTool || 'select'}
+Stage: ${canvasState.stage || 'sketch'}` 
+  : "Empty canvas - ready for design"}
 
 ## CONTEXT
 ${context || "Fresh design session"}`
