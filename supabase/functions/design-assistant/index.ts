@@ -24,14 +24,17 @@ serve(async (req) => {
 
 ## CANVAS CAPABILITIES
 
-### Templates You Can Add:
-- croquis-female: Female fashion figure
-- croquis-male: Male fashion figure  
-- basic-dress: A-line dress silhouette
-- fitted-top: Fitted blouse/top
-- wide-pants: Wide-leg trousers
-- jacket: Blazer/jacket
-- skirt: A-line skirt
+### Templates You Can Add (use EXACT IDs):
+- a-line-dress: Classic A-line dress silhouette
+- tshirt-basic: Basic T-shirt
+- blouse: Blouse with collar
+- slim-pants: Slim fit pants
+- wide-leg: Wide leg trousers
+- skirt-a-line: A-line skirt
+- blazer: Blazer/jacket
+- croquis-front: Fashion figure croquis
+- wrap-dress: Wrap style dress
+- bag-tote: Tote bag accessory
 
 ### Shapes You Can Add:
 - rectangle: Rectangular shape
@@ -156,8 +159,8 @@ Current context: ${context || "General fashion design workspace"}`;
                         properties: {
                           templateId: { 
                             type: "string", 
-                            enum: ["croquis-female", "croquis-male", "basic-dress", "fitted-top", "wide-pants", "jacket", "skirt"],
-                            description: "Template ID for add_template action" 
+                            enum: ["a-line-dress", "tshirt-basic", "blouse", "slim-pants", "wide-leg", "skirt-a-line", "blazer", "croquis-front", "wrap-dress", "bag-tote"],
+                            description: "Template ID for add_template action"
                           },
                           shapeType: { 
                             type: "string", 
