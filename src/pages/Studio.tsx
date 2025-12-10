@@ -1,4 +1,4 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useCallback } from "react";
 import { Layout } from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -13,6 +13,7 @@ import { AIAssistantPanel } from "@/components/studio/AIAssistantPanel";
 import { PhotoEditPanel } from "@/components/studio/PhotoEditPanel";
 import { ExportPanel } from "@/components/studio/ExportPanel";
 import { SavedDesignsPanel } from "@/components/studio/SavedDesignsPanel";
+import { SketchToRenderPanel } from "@/components/studio/SketchToRenderPanel";
 import { StudioCanvas, CanvasHandle, SelectedRegion } from "@/components/studio/StudioCanvas";
 import { useAICanvasAgent } from "@/hooks/useAICanvasAgent";
 import { useDesignStorage } from "@/hooks/useDesignStorage";
@@ -20,7 +21,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { Json } from "@/integrations/supabase/types";
 import {
   Undo, Redo, ZoomIn, ZoomOut, Grid3X3, Ruler, Save, Download, Wand2,
-  Palette, PenTool, Sparkles, ImageIcon, Layers, X, Folder, Loader2,
+  Palette, PenTool, Sparkles, ImageIcon, Layers, X, Folder, Loader2, Eye,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -43,6 +44,7 @@ const rightPanelTabs = {
     { id: 'layers', label: 'Layers', icon: Layers },
   ],
   refine: [
+    { id: 'look', label: 'LOOK', icon: Eye },
     { id: 'edit', label: 'Edit', icon: ImageIcon },
     { id: 'designs', label: 'Designs', icon: Folder },
     { id: 'ai', label: 'AI', icon: Wand2 },
@@ -113,6 +115,11 @@ export default function Studio() {
     createNewDesign();
     canvasRef.current?.clear();
   };
+
+  // Canvas export for LOOK feature
+  const getCanvasExport = useCallback(() => {
+    return canvasRef.current?.exportCanvasDataUrl?.() || null;
+  }, []);
 
   // Build comprehensive canvas context for AI
   const getCanvasContext = () => {
@@ -392,6 +399,9 @@ export default function Studio() {
                   onRejectAllActions={rejectAllActions}
                   onUndoLastAction={undoLastAction}
                 />
+              )}
+              {activeRightTab === 'look' && (
+                <SketchToRenderPanel canvasExport={getCanvasExport} />
               )}
               {activeRightTab === 'edit' && (
                 <PhotoEditPanel onApplyEffect={(e, v) => toast.success(`Applied ${e}: ${v}`)} />

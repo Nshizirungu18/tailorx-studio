@@ -33,6 +33,7 @@ export interface CanvasHandle {
   undo: () => void;
   redo: () => void;
   exportCanvas: (format: 'png' | 'jpg' | 'svg') => void;
+  exportCanvasDataUrl: () => string | null;
   setZoom: (zoom: number) => void;
   getSelectedRegion: () => SelectedRegion | null;
   clearRegionSelection: () => void;
@@ -656,6 +657,16 @@ export const StudioCanvas = forwardRef<CanvasHandle, StudioCanvasProps>(({
       const canvas = fabricRef.current;
       if (!canvas) return;
       canvas.setZoom(zoom / 100);
+    },
+
+    exportCanvasDataUrl: () => {
+      const canvas = fabricRef.current;
+      if (!canvas) return null;
+      return canvas.toDataURL({
+        format: 'png',
+        quality: 1,
+        multiplier: 1,
+      });
     },
 
     getCanvasJSON: () => {
