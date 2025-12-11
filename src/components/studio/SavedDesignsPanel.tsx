@@ -113,12 +113,23 @@ export function SavedDesignsPanel({ onLoadDesign, onNewDesign }: SavedDesignsPan
                 key={design.id}
                 onClick={() => handleLoad(design)}
                 className={cn(
-                  "group flex items-center gap-2 p-3 rounded-lg cursor-pointer transition-colors",
+                  "group flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors",
                   "hover:bg-accent/50",
                   currentDesignId === design.id && "bg-accent border border-primary/20"
                 )}
               >
-                <Folder className="w-5 h-5 text-primary shrink-0" />
+                {/* Thumbnail */}
+                <div className="w-14 h-14 rounded-md bg-muted border border-border overflow-hidden shrink-0 flex items-center justify-center">
+                  {design.thumbnail_url ? (
+                    <img 
+                      src={design.thumbnail_url} 
+                      alt={design.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Folder className="w-5 h-5 text-muted-foreground" />
+                  )}
+                </div>
                 
                 <div className="flex-1 min-w-0">
                   {editingId === design.id ? (
