@@ -100,8 +100,9 @@ export default function Studio() {
       return;
     }
     const canvasData = canvasRef.current?.getCanvasJSON();
+    const thumbnailDataUrl = canvasRef.current?.exportCanvasDataUrl?.('jpeg', 0.3) || undefined;
     if (canvasData) {
-      await saveDesign(canvasData as Json);
+      await saveDesign(canvasData as Json, undefined, thumbnailDataUrl);
     }
   };
 

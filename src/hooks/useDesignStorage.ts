@@ -20,7 +20,7 @@ interface UseDesignStorageReturn {
   currentDesignId: string | null;
   currentDesignName: string;
   loadDesigns: () => Promise<void>;
-  saveDesign: (canvasData: Json, name?: string) => Promise<string | null>;
+  saveDesign: (canvasData: Json, name?: string, thumbnailDataUrl?: string) => Promise<string | null>;
   loadDesign: (designId: string) => Promise<Json | null>;
   deleteDesign: (designId: string) => Promise<boolean>;
   renameDesign: (designId: string, newName: string) => Promise<boolean>;
@@ -60,7 +60,8 @@ export function useDesignStorage(): UseDesignStorageReturn {
 
   const saveDesign = useCallback(async (
     canvasData: Json,
-    name?: string
+    name?: string,
+    thumbnailDataUrl?: string
   ): Promise<string | null> => {
     if (!user) {
       toast.error('Please sign in to save designs');
@@ -78,6 +79,7 @@ export function useDesignStorage(): UseDesignStorageReturn {
           .update({
             canvas_data: canvasData,
             name: designName,
+            thumbnail_url: thumbnailDataUrl || null,
           })
           .eq('id', currentDesignId)
           .eq('user_id', user.id);
@@ -94,6 +96,7 @@ export function useDesignStorage(): UseDesignStorageReturn {
             user_id: user.id,
             canvas_data: canvasData,
             name: designName,
+            thumbnail_url: thumbnailDataUrl || null,
           })
           .select('id')
           .single();
