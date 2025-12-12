@@ -49,11 +49,27 @@ export function SketchToRenderPanel({ canvasExport }: SketchToRenderPanelProps) 
   const [sketchImage, setSketchImage] = useState<string | null>(null);
   const [prompt, setPrompt] = useState("A model on a fashion runway");
   const [referenceStrength, setReferenceStrength] = useState([70]);
-  const [selectedStyle, setSelectedStyle] = useState("photorealistic");
+  const [selectedStyles, setSelectedStyles] = useState<string[]>(["photorealistic"]);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [generatingCount, setGeneratingCount] = useState({ current: 0, total: 0 });
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [activeImage, setActiveImage] = useState<GeneratedImage | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const toggleStyle = (styleId: string) => {
+    setSelectedStyles((prev) => {
+      if (prev.includes(styleId)) {
+        // Don't allow deselecting the last style
+        if (prev.length === 1) return prev;
+        return prev.filter((s) => s !== styleId);
+      }
+      return [...prev, styleId];
+    });
+  };
+
+  const selectAllStyles = () => {
+    setSelectedStyles(styleOptions.map((s) => s.id));
+  };
 
   const handleFileUpload = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -84,47 +100,73 @@ export function SketchToRenderPanel({ canvasExport }: SketchToRenderPanelProps) 
     }
   }, [canvasExport]);
 
-  const handleGenerate = async () => {
-    if (!sketchImage) {
-      toast.error("Please upload a sketch first");
-      return;
-    }
-
-    setIsGenerating(true);
-
+  const generateSingleImage = async (style: string): Promise<GeneratedImage | null> => {
     try {
       const { data, error } = await supabase.functions.invoke("sketch-to-render", {
         body: {
           sketchImage,
           prompt,
           referenceStrength: referenceStrength[0],
-          style: selectedStyle,
+          style,
         },
       });
 
       if (error) throw error;
+      if (data.error) throw new Error(data.error);
 
-      if (data.error) {
-        throw new Error(data.error);
-      }
-
-      const newImage: GeneratedImage = {
-        id: `gen-${Date.now()}`,
+      return {
+        id: `gen-${Date.now()}-${style}`,
         url: data.image,
         prompt: data.prompt,
         style: data.style,
         timestamp: new Date(),
       };
-
-      setGeneratedImages((prev) => [newImage, ...prev]);
-      setActiveImage(newImage);
-      toast.success("Image rendered successfully!");
     } catch (err) {
-      console.error("Generation error:", err);
-      toast.error(err instanceof Error ? err.message : "Failed to generate image");
-    } finally {
-      setIsGenerating(false);
+      console.error(`Generation error for style ${style}:`, err);
+      return null;
     }
+  };
+
+  const handleGenerate = async () => {
+    if (!sketchImage) {
+      toast.error("Please upload a sketch first");
+      return;
+    }
+
+    if (selectedStyles.length === 0) {
+      toast.error("Please select at least one style");
+      return;
+    }
+
+    setIsGenerating(true);
+    setGeneratingCount({ current: 0, total: selectedStyles.length });
+
+    const newImages: GeneratedImage[] = [];
+    
+    // Generate images sequentially to avoid rate limits
+    for (let i = 0; i < selectedStyles.length; i++) {
+      const style = selectedStyles[i];
+      setGeneratingCount({ current: i + 1, total: selectedStyles.length });
+      
+      const image = await generateSingleImage(style);
+      if (image) {
+        newImages.push(image);
+        // Update state incrementally so users see results as they come in
+        setGeneratedImages((prev) => [image, ...prev]);
+        if (i === 0) {
+          setActiveImage(image);
+        }
+      }
+    }
+
+    if (newImages.length > 0) {
+      toast.success(`Generated ${newImages.length} variation${newImages.length > 1 ? 's' : ''} successfully!`);
+    } else {
+      toast.error("Failed to generate images");
+    }
+
+    setIsGenerating(false);
+    setGeneratingCount({ current: 0, total: 0 });
   };
 
   const handleDownload = async (image: GeneratedImage) => {
@@ -249,31 +291,51 @@ export function SketchToRenderPanel({ canvasExport }: SketchToRenderPanelProps) 
             </div>
           </div>
 
-          {/* Style Selection */}
+          {/* Style Selection - Multi-select */}
           <div>
-            <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider mb-2 block">
-              Style
-            </Label>
+            <div className="flex items-center justify-between mb-2">
+              <Label className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+                Styles ({selectedStyles.length} selected)
+              </Label>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 text-xs px-2"
+                onClick={selectAllStyles}
+                disabled={selectedStyles.length === styleOptions.length}
+              >
+                Select All
+              </Button>
+            </div>
             <div className="grid grid-cols-3 gap-2">
               {styleOptions.map((style) => {
                 const Icon = style.icon;
+                const isSelected = selectedStyles.includes(style.id);
                 return (
                   <button
                     key={style.id}
-                    onClick={() => setSelectedStyle(style.id)}
+                    onClick={() => toggleStyle(style.id)}
                     className={cn(
-                      "flex flex-col items-center justify-center p-2.5 rounded-lg border transition-all text-center",
-                      selectedStyle === style.id
+                      "flex flex-col items-center justify-center p-2.5 rounded-lg border transition-all text-center relative",
+                      isSelected
                         ? "border-primary bg-primary/10 text-primary"
                         : "border-border/50 hover:border-border text-muted-foreground hover:text-foreground"
                     )}
                   >
+                    {isSelected && (
+                      <div className="absolute top-1 right-1 w-3 h-3 rounded-full bg-primary flex items-center justify-center">
+                        <span className="text-[8px] text-primary-foreground font-bold">✓</span>
+                      </div>
+                    )}
                     <Icon className="w-4 h-4 mb-1" />
                     <span className="text-[10px] font-medium">{style.label}</span>
                   </button>
                 );
               })}
             </div>
+            <p className="text-[10px] text-muted-foreground mt-1.5">
+              Select multiple styles for batch generation
+            </p>
           </div>
 
           {/* Prompt Input */}
@@ -296,17 +358,17 @@ export function SketchToRenderPanel({ canvasExport }: SketchToRenderPanelProps) 
           <Button
             className="w-full gap-2 bg-gradient-to-r from-violet-600 to-fuchsia-600 hover:from-violet-700 hover:to-fuchsia-700"
             onClick={handleGenerate}
-            disabled={!sketchImage || isGenerating}
+            disabled={!sketchImage || isGenerating || selectedStyles.length === 0}
           >
             {isGenerating ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                Rendering...
+                Rendering {generatingCount.current}/{generatingCount.total}...
               </>
             ) : (
               <>
-                <ChevronRight className="w-4 h-4" />
-                Generate Render
+                <Sparkles className="w-4 h-4" />
+                Generate {selectedStyles.length > 1 ? `${selectedStyles.length} Variations` : "Render"}
               </>
             )}
           </Button>
