@@ -15,6 +15,7 @@ import {
 const navLinks = [
   { href: "/", label: "Home" },
   { href: "/studio", label: "Studio" },
+  { href: "/sketch-to-style", label: "Sketch to Style" },
   { href: "/templates", label: "Templates" },
   { href: "/tailors", label: "Tailors" },
   { href: "/materials", label: "Materials" },

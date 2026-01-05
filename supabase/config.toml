@@ -7,3 +7,7 @@ verify_jwt = false
 [functions.sketch-to-render]
 enabled = true
 verify_jwt = false
+
+[functions.generate-fashion]
+enabled = true
+verify_jwt = false
