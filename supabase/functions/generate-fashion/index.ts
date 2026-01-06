@@ -1,3 +1,4 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -35,16 +36,18 @@ serve(async (req) => {
     const detailDesc = detailLevel >= 80 ? "highly detailed, intricate textures" : 
                        detailLevel >= 50 ? "well-defined details" : "clean and simple";
     
-    const prompt = `Transform this fashion sketch into a photorealistic garment image. 
-Style specifications:
-- Fabric: ${fabricDesc} material with realistic texture and drape
-- Lighting: ${lightingDesc}
-- Detail level: ${detailDesc}
-${additionalNotes ? `- Additional notes: ${additionalNotes}` : ""}
+    const prompt = `You are a fashion product photographer. Convert the provided fashion sketch into a single photorealistic studio product photo.
 
-Create a professional fashion photography style image showing the garment on a clean background. 
-Maintain the exact design from the sketch while adding realistic fabric textures, proper shadows, and professional lighting.
-The result should look like a high-end fashion catalog photo.`;
+Requirements:
+- Keep the exact silhouette, seams, panels, and design lines from the sketch (do not redesign).
+- Photorealistic fabric: ${fabricDesc} with believable weave, folds, stitching, and drape.
+- Lighting: ${lightingDesc} with professional studio softboxes, accurate shadows and highlights.
+- Detail: ${detailDesc}
+${additionalNotes ? `- Notes: ${additionalNotes}` : ""}
+
+Output:
+- A clean, high-end catalog photo on a neutral background (no text, no watermark, no collage).
+- Target image size ~1024px on the longest side.`;
 
     console.log("Generating fashion image with prompt:", prompt.substring(0, 100) + "...");
 
