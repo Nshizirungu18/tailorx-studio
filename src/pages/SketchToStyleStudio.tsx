@@ -89,7 +89,7 @@ export default function SketchToStyleStudio() {
     setError(null);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke("generate-fashion", {
+      const response = await supabase.functions.invoke("generate-fashion", {
         body: {
           sketchBase64: sketchImage,
           fabricType: settings.fabricType,
@@ -99,8 +99,12 @@ export default function SketchToStyleStudio() {
         },
       });
 
+      const { data, error: fnError } = response;
+
       if (fnError) {
-        throw new Error(fnError.message || "Failed to generate image");
+        console.error("Function invocation error:", fnError);
+        const errorMessage = fnError.message || "Failed to connect to the AI service";
+        throw new Error(errorMessage);
       }
 
       if (data?.error) {
@@ -119,13 +123,23 @@ export default function SketchToStyleStudio() {
         toast.success("Design generated successfully!");
         startCooldown(10);
       } else {
-        throw new Error("No image received from generation");
+        throw new Error("No image was generated. Please try a different sketch.");
       }
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Generation failed";
+      console.error("Generation error:", err);
+      let message = "Generation failed. Please try again.";
+      if (err instanceof Error) {
+        if (err.message.includes("Failed to send")) {
+          message = "Unable to connect to AI service. The service may be temporarily unavailable. Please try again in a moment.";
+        } else if (err.message.includes("FunctionsFetchError")) {
+          message = "Network error connecting to AI service. Please check your connection and try again.";
+        } else {
+          message = err.message;
+        }
+      }
       setError(message);
       toast.error(message);
-      startCooldown(10);
+      startCooldown(15);
     } finally {
       setIsGenerating(false);
     }
