@@ -89,22 +89,61 @@ export default function SketchToStyleStudio() {
     setError(null);
 
     try {
-      const response = await supabase.functions.invoke("generate-fashion", {
-        body: {
-          sketchBase64: sketchImage,
-          fabricType: settings.fabricType,
-          lightingStyle: settings.lightingStyle,
-          detailLevel: settings.detailLevel,
-          additionalNotes: settings.additionalNotes,
-        },
-      });
-
-      const { data, error: fnError } = response;
+      const { data, error: fnError, response: fnResponse } = await supabase.functions.invoke(
+        "generate-fashion",
+        {
+          body: {
+            sketchBase64: sketchImage,
+            fabricType: settings.fabricType,
+            lightingStyle: settings.lightingStyle,
+            detailLevel: settings.detailLevel,
+            additionalNotes: settings.additionalNotes,
+          },
+        }
+      );
 
       if (fnError) {
-        console.error("Function invocation error:", fnError);
-        const errorMessage = fnError.message || "Failed to connect to the AI service";
-        throw new Error(errorMessage);
+        if (fnError.name === "FunctionsHttpError" && fnResponse) {
+          const status = fnResponse.status;
+          const contentType = fnResponse.headers.get("content-type") ?? "";
+          const payload = contentType.includes("application/json")
+            ? await fnResponse.clone().json().catch(() => null)
+            : null;
+
+          const serverError = payload?.error as string | undefined;
+          const retryAfterSeconds =
+            typeof payload?.retryAfterSeconds === "number" ? (payload.retryAfterSeconds as number) : undefined;
+
+          if (status === 429) {
+            const wait = retryAfterSeconds ?? 15;
+            const msg = serverError ?? `Rate limited. Please wait ${wait} seconds.`;
+            startCooldown(wait);
+            setError(msg);
+            toast.error(msg);
+            return;
+          }
+
+          if (status === 503) {
+            throw new Error(
+              serverError ??
+                "The backend is currently paused/unavailable. Please resume it and try again."
+            );
+          }
+
+          throw new Error(serverError ?? `Generation failed (status ${status}). Please try again.`);
+        }
+
+        if (fnError.name === "FunctionsFetchError") {
+          throw new Error(
+            "Cannot reach the generation service. Please check your internet/VPN/firewall and try again."
+          );
+        }
+
+        if (fnError.name === "FunctionsRelayError") {
+          throw new Error("Generation service is temporarily unavailable. Please try again shortly.");
+        }
+
+        throw new Error(fnError.message || "Failed to generate image");
       }
 
       if (data?.error) {

@@ -1,3 +1,4 @@
+import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const corsHeaders = {
@@ -41,7 +42,7 @@ serve(async (req) => {
       ? "closely following the design while adding realistic details and textures"
       : "inspired by the sketch concept, with creative interpretation";
 
-    const fullPrompt = `Transform this fashion sketch into a high-fidelity rendered image. ${strengthDescription}. Style: ${selectedStyle}. ${prompt || "A model on a fashion runway, professional photography."}. 16:9 aspect ratio, high resolution, professional fashion photography.`;
+    const fullPrompt = `Transform this fashion sketch into a high-fidelity photorealistic render. ${strengthDescription}. Style: ${selectedStyle}. ${prompt || "A mannequin or model in a clean studio, product-style fashion photo."}. No text, no watermark. Target ~1024px on the longest side.`;
 
     console.log("Generating render with prompt:", fullPrompt);
 
@@ -76,12 +77,17 @@ serve(async (req) => {
     });
 
     if (!response.ok) {
-      if (response.status === 429) {
-        return new Response(
-          JSON.stringify({ error: "Rate limit exceeded. Please try again later." }),
-          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-        );
-      }
+       if (response.status === 429) {
+         const retryAfter = response.headers.get("retry-after");
+         const retryAfterSeconds = retryAfter ? parseInt(retryAfter, 10) : 15;
+         return new Response(
+           JSON.stringify({
+             error: "Rate limit exceeded. Please wait before trying again.",
+             retryAfterSeconds,
+           }),
+           { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+         );
+       }
       if (response.status === 402) {
         return new Response(
           JSON.stringify({ error: "AI credits exhausted. Please add funds to continue." }),
