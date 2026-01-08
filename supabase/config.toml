@@ -11,3 +11,7 @@ verify_jwt = false
 [functions.generate-fashion]
 enabled = true
 verify_jwt = false
+
+[functions.health]
+enabled = true
+verify_jwt = false

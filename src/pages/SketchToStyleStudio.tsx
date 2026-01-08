@@ -7,7 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Label } from "@/components/ui/label";
 import { StyleControls, StyleSettings } from "@/components/sketch-to-style/StyleControls";
+import { BackendStatusBanner } from "@/components/sketch-to-style/BackendStatusBanner";
 import { useGenerationCooldown } from "@/hooks/useGenerationCooldown";
+import { useBackendHealth } from "@/hooks/useBackendHealth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import * as fabric from "fabric";
@@ -30,6 +32,7 @@ export default function SketchToStyleStudio() {
   const [error, setError] = useState<string | null>(null);
 
   const { cooldownRemaining, isOnCooldown, startCooldown } = useGenerationCooldown();
+  const { isHealthy, error: healthError, recheckHealth } = useBackendHealth();
 
   // Initialize Fabric.js canvas
   useEffect(() => {
@@ -222,6 +225,13 @@ export default function SketchToStyleStudio() {
               </p>
             </div>
           </div>
+
+          {/* Backend Status Banner */}
+          <BackendStatusBanner
+            isHealthy={isHealthy}
+            error={healthError}
+            onRetry={recheckHealth}
+          />
 
           {/* Main Grid */}
           <div className="grid lg:grid-cols-3 gap-8">

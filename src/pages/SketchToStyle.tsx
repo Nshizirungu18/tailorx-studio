@@ -6,7 +6,9 @@ import { Button } from "@/components/ui/button";
 import { SketchUploader } from "@/components/sketch-to-style/SketchUploader";
 import { StyleControls, StyleSettings } from "@/components/sketch-to-style/StyleControls";
 import { GeneratedResult } from "@/components/sketch-to-style/GeneratedResult";
+import { BackendStatusBanner } from "@/components/sketch-to-style/BackendStatusBanner";
 import { useGenerationCooldown } from "@/hooks/useGenerationCooldown";
+import { useBackendHealth } from "@/hooks/useBackendHealth";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 
@@ -26,6 +28,7 @@ export default function SketchToStyle() {
   const [error, setError] = useState<string | null>(null);
   
   const { cooldownRemaining, isOnCooldown, startCooldown } = useGenerationCooldown();
+  const { isHealthy, error: healthError, recheckHealth } = useBackendHealth();
 
   const handleGenerate = useCallback(async () => {
     if (!sketchImage) {
@@ -173,6 +176,13 @@ export default function SketchToStyle() {
               Upload a sketch, customize the style, and let AI bring your designs to life.
             </p>
           </div>
+
+          {/* Backend Status Banner */}
+          <BackendStatusBanner
+            isHealthy={isHealthy}
+            error={healthError}
+            onRetry={recheckHealth}
+          />
 
           {/* Step Indicators */}
           <div className="flex items-center justify-center gap-4 mb-12">
