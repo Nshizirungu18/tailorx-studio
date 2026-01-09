@@ -22,17 +22,12 @@ export function TemplatesPanel({ onTemplateSelect }: TemplatesPanelProps) {
     return matchesSearch && matchesCategory;
   });
 
-  // Check if template has SVG data (is interactive)
-  const hasInteractiveTemplate = (templateId: string) => {
-    return getSvgTemplate(templateId) !== null;
-  };
-
   return (
     <div className="flex flex-col h-full">
       {/* Header with instructions */}
       <div className="p-4 border-b border-border bg-primary/5">
         <p className="text-xs text-muted-foreground mb-2">
-          Click a template to add it to canvas. Templates with <Sparkles className="w-3 h-3 inline text-primary" /> have fillable regions.
+          Click a template to add it to canvas. All templates have <Sparkles className="w-3 h-3 inline text-primary" /> fillable regions you can color.
         </p>
       </div>
 
@@ -84,9 +79,7 @@ export function TemplatesPanel({ onTemplateSelect }: TemplatesPanelProps) {
       {/* Templates Grid */}
       <ScrollArea className="flex-1 p-4">
         <div className="grid grid-cols-2 gap-3">
-          {filteredTemplates.map((template) => {
-            const isInteractive = hasInteractiveTemplate(template.id);
-            return (
+          {filteredTemplates.map((template) => (
               <Card
                 key={template.id}
                 onClick={() => onTemplateSelect(template.id)}
@@ -95,18 +88,16 @@ export function TemplatesPanel({ onTemplateSelect }: TemplatesPanelProps) {
                   "bg-secondary/30 hover:bg-secondary/50",
                   "hover:shadow-lg hover:scale-[1.02]",
                   "border border-border/50 hover:border-primary/30",
-                  isInteractive && "ring-1 ring-primary/20"
+                  "ring-1 ring-primary/20"
                 )}
               >
-                {isInteractive && (
-                  <Badge 
-                    variant="secondary" 
-                    className="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary"
-                  >
-                    <Sparkles className="w-3 h-3 mr-1" />
-                    Interactive
-                  </Badge>
-                )}
+                <Badge 
+                  variant="secondary" 
+                  className="absolute top-2 right-2 text-[10px] px-1.5 py-0.5 bg-primary/10 text-primary"
+                >
+                  <Sparkles className="w-3 h-3 mr-1" />
+                  Interactive
+                </Badge>
                 <div className="aspect-square flex items-center justify-center mb-2 text-4xl opacity-70 group-hover:opacity-100 transition-opacity">
                   {template.thumbnail}
                 </div>
@@ -117,8 +108,7 @@ export function TemplatesPanel({ onTemplateSelect }: TemplatesPanelProps) {
                   <ChevronRight className="w-3 h-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
                 </div>
               </Card>
-            );
-          })}
+          ))}
         </div>
 
         {filteredTemplates.length === 0 && (

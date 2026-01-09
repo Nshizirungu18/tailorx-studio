@@ -13,7 +13,7 @@ import { AIAssistantPanel } from "@/components/studio/AIAssistantPanel";
 import { PhotoEditPanel } from "@/components/studio/PhotoEditPanel";
 import { ExportPanel } from "@/components/studio/ExportPanel";
 import { SavedDesignsPanel } from "@/components/studio/SavedDesignsPanel";
-import { SketchToRenderPanel } from "@/components/studio/SketchToRenderPanel";
+import { DesignModePanel } from "@/components/studio/DesignModePanel";
 import { StudioCanvas, CanvasHandle, SelectedRegion } from "@/components/studio/StudioCanvas";
 import { useAICanvasAgent } from "@/hooks/useAICanvasAgent";
 import { useDesignStorage } from "@/hooks/useDesignStorage";
@@ -44,7 +44,7 @@ const rightPanelTabs = {
     { id: 'layers', label: 'Layers', icon: Layers },
   ],
   refine: [
-    { id: 'look', label: 'LOOK', icon: Eye },
+    { id: 'render', label: 'Render', icon: Eye },
     { id: 'edit', label: 'Edit', icon: ImageIcon },
     { id: 'designs', label: 'Designs', icon: Folder },
     { id: 'ai', label: 'AI', icon: Wand2 },
@@ -401,8 +401,11 @@ export default function Studio() {
                   onUndoLastAction={undoLastAction}
                 />
               )}
-              {activeRightTab === 'look' && (
-                <SketchToRenderPanel canvasExport={getCanvasExport} />
+              {activeRightTab === 'render' && (
+                <DesignModePanel 
+                  canvasExport={getCanvasExport} 
+                  onSaveToProject={(url, name) => toast.success(`Saved "${name}" to project`)}
+                />
               )}
               {activeRightTab === 'edit' && (
                 <PhotoEditPanel onApplyEffect={(e, v) => toast.success(`Applied ${e}: ${v}`)} />
