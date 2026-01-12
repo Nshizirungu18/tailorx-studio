@@ -7,12 +7,15 @@ import { Label } from "@/components/ui/label";
 import { Slider } from "@/components/ui/slider";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Textarea } from "@/components/ui/textarea";
 import { supabase } from "@/integrations/supabase/client";
+import { useRenderedProjects } from "@/hooks/useRenderedProjects";
+import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
 import {
   Upload, Pencil, Sparkles, Download, RefreshCw, Loader2, X, 
-  ImageIcon, Camera, Wand2, CheckCircle2, Save
+  ImageIcon, Camera, Wand2, CheckCircle2, Save, FolderPlus
 } from "lucide-react";
 
 interface GeneratedImage {
@@ -20,6 +23,7 @@ interface GeneratedImage {
   prompt: string;
   style: string;
   timestamp: number;
+  sourceSketch?: string;
 }
 
 const styleOptions = [
@@ -36,7 +40,10 @@ interface DesignModePanelProps {
   onSaveToProject?: (imageUrl: string, name: string) => void;
 }
 
-export function DesignModePanel({ canvasExport, onSaveToProject }: DesignModePanelProps) {
+export function DesignModePanel({ canvasExport }: DesignModePanelProps) {
+  const { user } = useAuth();
+  const { saveProject, isSaving } = useRenderedProjects();
+  
   const [activeMode, setActiveMode] = useState<'scratch' | 'upload'>('scratch');
   const [sketchImage, setSketchImage] = useState<string | null>(null);
   const [prompt, setPrompt] = useState('');
@@ -46,6 +53,7 @@ export function DesignModePanel({ canvasExport, onSaveToProject }: DesignModePan
   const [generatedImages, setGeneratedImages] = useState<GeneratedImage[]>([]);
   const [activeImage, setActiveImage] = useState<GeneratedImage | null>(null);
   const [saveName, setSaveName] = useState('');
+  const [modificationPrompt, setModificationPrompt] = useState('');
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -89,14 +97,15 @@ export function DesignModePanel({ canvasExport, onSaveToProject }: DesignModePan
     );
   };
 
-  const generateImage = async (style: string) => {
-    if (!sketchImage) return null;
+  const generateImage = async (style: string, customPrompt?: string) => {
+    const sourceImage = sketchImage || (activeImage?.url);
+    if (!sourceImage) return null;
 
     try {
       const { data, error } = await supabase.functions.invoke('sketch-to-render', {
         body: {
-          sketchImage,
-          prompt: prompt || 'Fashion garment design',
+          sketchImage: sourceImage,
+          prompt: customPrompt || prompt || 'Fashion garment design',
           referenceStrength,
           style
         }
@@ -107,9 +116,10 @@ export function DesignModePanel({ canvasExport, onSaveToProject }: DesignModePan
       if (data?.generatedImage) {
         return {
           url: data.generatedImage,
-          prompt: data.prompt || prompt,
+          prompt: data.prompt || customPrompt || prompt,
           style,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          sourceSketch: sketchImage || undefined
         };
       }
       return null;
@@ -162,15 +172,47 @@ export function DesignModePanel({ canvasExport, onSaveToProject }: DesignModePan
     link.click();
   };
 
-  const handleSaveToProject = () => {
+  const handleSaveToProject = async () => {
     if (!activeImage) return;
     if (!saveName.trim()) {
       toast.error('Please enter a name for the design');
       return;
     }
-    onSaveToProject?.(activeImage.url, saveName);
-    toast.success('Design saved to project!');
+    if (!user) {
+      toast.error('Please sign in to save projects');
+      return;
+    }
+
+    await saveProject({
+      name: saveName.trim(),
+      renderedImageUrl: activeImage.url,
+      sourceSketchUrl: activeImage.sourceSketch,
+      prompt: activeImage.prompt,
+      style: activeImage.style,
+    });
     setSaveName('');
+  };
+
+  const handleModify = async () => {
+    if (!activeImage || !modificationPrompt.trim()) {
+      toast.error('Please enter modification instructions');
+      return;
+    }
+
+    setIsGenerating(true);
+    try {
+      const result = await generateImage(activeImage.style, modificationPrompt);
+      if (result) {
+        setGeneratedImages(prev => [result, ...prev]);
+        setActiveImage(result);
+        toast.success('Design modified!');
+        setModificationPrompt('');
+      } else {
+        toast.error('Modification failed. Please try again.');
+      }
+    } finally {
+      setIsGenerating(false);
+    }
   };
 
   return (
@@ -371,8 +413,30 @@ export function DesignModePanel({ canvasExport, onSaveToProject }: DesignModePan
                 </div>
               </div>
 
+              {/* Modify with Prompt */}
+              <div className="space-y-2">
+                <Label className="text-xs text-muted-foreground">Modify Design</Label>
+                <Textarea
+                  value={modificationPrompt}
+                  onChange={(e) => setModificationPrompt(e.target.value)}
+                  placeholder="e.g., change the sleeves to long sleeves, add gold buttons..."
+                  rows={2}
+                  className="text-sm"
+                />
+                <Button 
+                  size="sm" 
+                  variant="outline" 
+                  onClick={handleModify}
+                  disabled={isGenerating || !modificationPrompt.trim()}
+                  className="w-full gap-2"
+                >
+                  {isGenerating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Sparkles className="w-3 h-3" />}
+                  Apply Modifications
+                </Button>
+              </div>
+
               {/* Save to Project */}
-              {onSaveToProject && (
+              {user && (
                 <div className="flex gap-2">
                   <Input
                     value={saveName}
@@ -380,8 +444,13 @@ export function DesignModePanel({ canvasExport, onSaveToProject }: DesignModePan
                     placeholder="Design name..."
                     className="flex-1 text-sm"
                   />
-                  <Button size="sm" onClick={handleSaveToProject} className="gap-1">
-                    <Save className="w-3 h-3" />
+                  <Button 
+                    size="sm" 
+                    onClick={handleSaveToProject} 
+                    disabled={isSaving}
+                    className="gap-1"
+                  >
+                    {isSaving ? <Loader2 className="w-3 h-3 animate-spin" /> : <FolderPlus className="w-3 h-3" />}
                     Save
                   </Button>
                 </div>

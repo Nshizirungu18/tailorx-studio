@@ -14,6 +14,7 @@ import { PhotoEditPanel } from "@/components/studio/PhotoEditPanel";
 import { ExportPanel } from "@/components/studio/ExportPanel";
 import { SavedDesignsPanel } from "@/components/studio/SavedDesignsPanel";
 import { DesignModePanel } from "@/components/studio/DesignModePanel";
+import { ProjectsPanel } from "@/components/studio/ProjectsPanel";
 import { StudioCanvas, CanvasHandle, SelectedRegion } from "@/components/studio/StudioCanvas";
 import { useAICanvasAgent } from "@/hooks/useAICanvasAgent";
 import { useDesignStorage } from "@/hooks/useDesignStorage";
@@ -22,6 +23,7 @@ import { Json } from "@/integrations/supabase/types";
 import {
   Undo, Redo, ZoomIn, ZoomOut, Grid3X3, Ruler, Save, Download, Wand2,
   Palette, PenTool, Sparkles, ImageIcon, Layers, X, Folder, Loader2, Eye,
+  FolderOpen,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -29,29 +31,32 @@ const rightPanelTabs = {
   color: [
     { id: 'colors', label: 'Colors', icon: Palette },
     { id: 'designs', label: 'Designs', icon: Folder },
+    { id: 'projects', label: 'Projects', icon: FolderOpen },
     { id: 'ai', label: 'AI', icon: Wand2 },
   ],
   sketch: [
     { id: 'templates', label: 'Templates', icon: PenTool },
     { id: 'colors', label: 'Colors', icon: Palette },
     { id: 'designs', label: 'Designs', icon: Folder },
+    { id: 'projects', label: 'Projects', icon: FolderOpen },
     { id: 'layers', label: 'Layers', icon: Layers },
   ],
   detail: [
     { id: 'brushes', label: 'Brushes', icon: Sparkles },
     { id: 'colors', label: 'Colors', icon: Palette },
     { id: 'designs', label: 'Designs', icon: Folder },
+    { id: 'projects', label: 'Projects', icon: FolderOpen },
     { id: 'layers', label: 'Layers', icon: Layers },
   ],
   refine: [
     { id: 'render', label: 'Render', icon: Eye },
     { id: 'edit', label: 'Edit', icon: ImageIcon },
-    { id: 'designs', label: 'Designs', icon: Folder },
+    { id: 'projects', label: 'Projects', icon: FolderOpen },
     { id: 'ai', label: 'AI', icon: Wand2 },
   ],
   present: [
     { id: 'export', label: 'Export', icon: Download },
-    { id: 'designs', label: 'Designs', icon: Folder },
+    { id: 'projects', label: 'Projects', icon: FolderOpen },
     { id: 'layers', label: 'Layers', icon: Layers },
   ],
 };
@@ -402,10 +407,10 @@ export default function Studio() {
                 />
               )}
               {activeRightTab === 'render' && (
-                <DesignModePanel 
-                  canvasExport={getCanvasExport} 
-                  onSaveToProject={(url, name) => toast.success(`Saved "${name}" to project`)}
-                />
+                <DesignModePanel canvasExport={getCanvasExport} />
+              )}
+              {activeRightTab === 'projects' && (
+                <ProjectsPanel />
               )}
               {activeRightTab === 'edit' && (
                 <PhotoEditPanel onApplyEffect={(e, v) => toast.success(`Applied ${e}: ${v}`)} />
