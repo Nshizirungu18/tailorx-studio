@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute";
@@ -13,8 +13,6 @@ import Templates from "./pages/Templates";
 import Tailors from "./pages/Tailors";
 import Materials from "./pages/Materials";
 import Orders from "./pages/Orders";
-import SketchToStyle from "./pages/SketchToStyle";
-import SketchToStyleStudio from "./pages/SketchToStyleStudio";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -33,8 +31,9 @@ const App = () => (
               <Route path="/templates" element={<Templates />} />
               <Route path="/tailors" element={<Tailors />} />
               <Route path="/materials" element={<Materials />} />
-              <Route path="/sketch-to-style" element={<SketchToStyle />} />
-              <Route path="/sketch-to-style/studio" element={<SketchToStyleStudio />} />
+              {/* Redirect old sketch-to-style routes to studio */}
+              <Route path="/sketch-to-style" element={<Navigate to="/studio" replace />} />
+              <Route path="/sketch-to-style/studio" element={<Navigate to="/studio" replace />} />
               <Route
                 path="/studio"
                 element={

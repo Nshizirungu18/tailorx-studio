@@ -71,6 +71,97 @@ export type Database = {
         }
         Relationships: []
       }
+      rendered_projects: {
+        Row: {
+          created_at: string
+          design_id: string | null
+          id: string
+          name: string
+          prompt: string | null
+          rendered_image_url: string
+          source_sketch_url: string | null
+          style: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          design_id?: string | null
+          id?: string
+          name?: string
+          prompt?: string | null
+          rendered_image_url: string
+          source_sketch_url?: string | null
+          style?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          design_id?: string | null
+          id?: string
+          name?: string
+          prompt?: string | null
+          rendered_image_url?: string
+          source_sketch_url?: string | null
+          style?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rendered_projects_design_id_fkey"
+            columns: ["design_id"]
+            isOneToOne: false
+            referencedRelation: "designs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      tailor_transfers: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          rendered_project_id: string
+          status: string
+          tailor_id: string
+          tailor_name: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          rendered_project_id: string
+          status?: string
+          tailor_id: string
+          tailor_name: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          rendered_project_id?: string
+          status?: string
+          tailor_id?: string
+          tailor_name?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tailor_transfers_rendered_project_id_fkey"
+            columns: ["rendered_project_id"]
+            isOneToOne: false
+            referencedRelation: "rendered_projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
