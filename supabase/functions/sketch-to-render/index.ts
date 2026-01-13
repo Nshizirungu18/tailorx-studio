@@ -12,7 +12,7 @@ serve(async (req) => {
   }
 
   try {
-    const { sketchImage, prompt, referenceStrength, style } = await req.json();
+    const { sketchImage, prompt, referenceStrength, style, fabricType, lightingStyle } = await req.json();
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
 
     if (!LOVABLE_API_KEY) {
@@ -25,15 +25,38 @@ serve(async (req) => {
 
     // Build the rendering prompt based on user input and style
     const styleDescriptions: Record<string, string> = {
+      realistic: "ultra-realistic fashion photography, studio lighting, high-end editorial",
       photorealistic: "ultra-realistic fashion photography, studio lighting, high-end editorial",
       editorial: "high fashion editorial, dramatic lighting, Vogue-style photography",
-      illustration: "fashion illustration style, artistic rendering, watercolor effects",
+      artistic: "fashion illustration style, artistic rendering, watercolor effects",
       streetwear: "urban streetwear photography, natural lighting, lifestyle shot",
-      couture: "haute couture, luxury fashion, glamorous, runway presentation",
       minimalist: "clean minimal aesthetic, neutral tones, contemporary fashion",
+      avantgarde: "avant-garde fashion, experimental design, bold artistic interpretation",
+      couture: "haute couture, luxury fashion, glamorous, runway presentation",
     };
 
-    const selectedStyle = styleDescriptions[style] || styleDescriptions.photorealistic;
+    const fabricDescriptions: Record<string, string> = {
+      cotton: "soft cotton fabric with natural texture",
+      silk: "luxurious silk with smooth sheen and elegant drape",
+      denim: "sturdy denim with visible weave and authentic texture",
+      leather: "premium leather with rich texture and subtle shine",
+      wool: "fine wool fabric with soft texture and warmth",
+      linen: "natural linen with relaxed texture and breathability",
+      velvet: "plush velvet with rich depth and soft pile",
+      synthetic: "modern synthetic fabric with clean finish",
+    };
+
+    const lightingDescriptions: Record<string, string> = {
+      studio: "professional studio lighting, even illumination, clean shadows",
+      natural: "natural daylight, soft ambient lighting",
+      dramatic: "dramatic high-contrast lighting, deep shadows",
+      soft: "soft diffused lighting, minimal shadows, gentle highlights",
+      golden_hour: "warm golden hour lighting, sunset tones, romantic atmosphere",
+    };
+
+    const selectedStyle = styleDescriptions[style] || styleDescriptions.realistic;
+    const selectedFabric = fabricDescriptions[fabricType] || "";
+    const selectedLighting = lightingDescriptions[lightingStyle] || lightingDescriptions.studio;
     
     // Adjust prompt based on reference strength
     const strengthDescription = referenceStrength > 70 
@@ -42,7 +65,7 @@ serve(async (req) => {
       ? "closely following the design while adding realistic details and textures"
       : "inspired by the sketch concept, with creative interpretation";
 
-    const fullPrompt = `Transform this fashion sketch into a high-fidelity photorealistic render. ${strengthDescription}. Style: ${selectedStyle}. ${prompt || "A mannequin or model in a clean studio, product-style fashion photo."}. No text, no watermark. Target ~1024px on the longest side.`;
+    const fullPrompt = `Transform this fashion sketch into a high-fidelity photorealistic render. ${strengthDescription}. Style: ${selectedStyle}. ${selectedFabric ? `Fabric: ${selectedFabric}.` : ""} Lighting: ${selectedLighting}. ${prompt || "A mannequin or model in a clean studio, product-style fashion photo."}. No text, no watermark. Target ~1024px on the longest side.`;
 
     console.log("Generating render with prompt:", fullPrompt);
 
