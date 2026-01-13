@@ -113,11 +113,12 @@ export function DesignModePanel({ canvasExport }: DesignModePanelProps) {
 
       if (error) throw error;
 
-      if (data?.generatedImage) {
+      // The edge function returns 'image', not 'generatedImage'
+      if (data?.image) {
         return {
-          url: data.generatedImage,
+          url: data.image,
           prompt: data.prompt || customPrompt || prompt,
-          style,
+          style: data.style || style,
           timestamp: Date.now(),
           sourceSketch: sketchImage || undefined
         };
@@ -125,6 +126,7 @@ export function DesignModePanel({ canvasExport }: DesignModePanelProps) {
       return null;
     } catch (err) {
       console.error(`Generation error for ${style}:`, err);
+      toast.error('Generation failed. Please try again.');
       return null;
     }
   };
