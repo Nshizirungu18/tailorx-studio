@@ -16,29 +16,101 @@ export type Database = {
     Tables: {
       designs: {
         Row: {
+          additional_notes: string | null
+          agent_type: string | null
           canvas_data: Json
           created_at: string
+          detail_level: number | null
+          fabric_type: string | null
+          generated_image: string | null
           id: string
+          lighting_style: string | null
           name: string
+          sketch_data: string | null
           thumbnail_url: string | null
           updated_at: string
           user_id: string
         }
         Insert: {
+          additional_notes?: string | null
+          agent_type?: string | null
           canvas_data?: Json
           created_at?: string
+          detail_level?: number | null
+          fabric_type?: string | null
+          generated_image?: string | null
           id?: string
+          lighting_style?: string | null
           name?: string
+          sketch_data?: string | null
           thumbnail_url?: string | null
           updated_at?: string
           user_id: string
         }
         Update: {
+          additional_notes?: string | null
+          agent_type?: string | null
           canvas_data?: Json
           created_at?: string
+          detail_level?: number | null
+          fabric_type?: string | null
+          generated_image?: string | null
           id?: string
+          lighting_style?: string | null
           name?: string
+          sketch_data?: string | null
           thumbnail_url?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      generations: {
+        Row: {
+          additional_notes: string | null
+          agent_type: string | null
+          created_at: string
+          detail_level: number | null
+          error_message: string | null
+          fabric_type: string | null
+          generated_image: string | null
+          id: string
+          lighting_style: string | null
+          retry_count: number | null
+          sketch_data: string | null
+          status: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          additional_notes?: string | null
+          agent_type?: string | null
+          created_at?: string
+          detail_level?: number | null
+          error_message?: string | null
+          fabric_type?: string | null
+          generated_image?: string | null
+          id?: string
+          lighting_style?: string | null
+          retry_count?: number | null
+          sketch_data?: string | null
+          status?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          additional_notes?: string | null
+          agent_type?: string | null
+          created_at?: string
+          detail_level?: number | null
+          error_message?: string | null
+          fabric_type?: string | null
+          generated_image?: string | null
+          id?: string
+          lighting_style?: string | null
+          retry_count?: number | null
+          sketch_data?: string | null
+          status?: string | null
           updated_at?: string
           user_id?: string
         }

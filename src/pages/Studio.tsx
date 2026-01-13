@@ -13,7 +13,8 @@ import { AIAssistantPanel } from "@/components/studio/AIAssistantPanel";
 import { PhotoEditPanel } from "@/components/studio/PhotoEditPanel";
 import { ExportPanel } from "@/components/studio/ExportPanel";
 import { SavedDesignsPanel } from "@/components/studio/SavedDesignsPanel";
-import { DesignModePanel } from "@/components/studio/DesignModePanel";
+import { GenerationSettingsPanel } from "@/components/studio/GenerationSettingsPanel";
+import { GenerationQueuePanel } from "@/components/studio/GenerationQueuePanel";
 import { ProjectsPanel } from "@/components/studio/ProjectsPanel";
 import { StudioCanvas, CanvasHandle, SelectedRegion } from "@/components/studio/StudioCanvas";
 import { useAICanvasAgent } from "@/hooks/useAICanvasAgent";
@@ -23,7 +24,7 @@ import { Json } from "@/integrations/supabase/types";
 import {
   Undo, Redo, ZoomIn, ZoomOut, Grid3X3, Ruler, Save, Download, Wand2,
   Palette, PenTool, Sparkles, ImageIcon, Layers, X, Folder, Loader2, Eye,
-  FolderOpen,
+  FolderOpen, Clock,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -50,6 +51,7 @@ const rightPanelTabs = {
   ],
   refine: [
     { id: 'render', label: 'Render', icon: Eye },
+    { id: 'queue', label: 'Queue', icon: Clock },
     { id: 'edit', label: 'Edit', icon: ImageIcon },
     { id: 'projects', label: 'Projects', icon: FolderOpen },
     { id: 'ai', label: 'AI', icon: Wand2 },
@@ -407,7 +409,10 @@ export default function Studio() {
                 />
               )}
               {activeRightTab === 'render' && (
-                <DesignModePanel canvasExport={getCanvasExport} />
+                <GenerationSettingsPanel canvasExport={getCanvasExport} />
+              )}
+              {activeRightTab === 'queue' && (
+                <GenerationQueuePanel />
               )}
               {activeRightTab === 'projects' && (
                 <ProjectsPanel />
