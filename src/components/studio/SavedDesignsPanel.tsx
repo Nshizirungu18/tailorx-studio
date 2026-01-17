@@ -1,34 +1,41 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, RefObject } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { useDesignStorage, SavedDesign } from '@/hooks/useDesignStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { formatDistanceToNow } from 'date-fns';
-import { Folder, Trash2, Edit2, Check, X, FilePlus, Loader2 } from 'lucide-react';
+import { Folder, Trash2, Edit2, Check, X, FilePlus, Loader2, Save, AlertCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { Json } from '@/integrations/supabase/types';
+import { toast } from 'sonner';
+import { CanvasHandle } from './StudioCanvas';
 
 interface SavedDesignsPanelProps {
-  onLoadDesign: (canvasData: Json) => void;
-  onNewDesign: () => void;
+  canvasRef: RefObject<CanvasHandle>;
+  getCanvasData: () => object | null;
 }
 
-export function SavedDesignsPanel({ onLoadDesign, onNewDesign }: SavedDesignsPanelProps) {
+export function SavedDesignsPanel({ canvasRef, getCanvasData }: SavedDesignsPanelProps) {
   const { user } = useAuth();
   const {
     designs,
     isLoading,
-    currentDesignId,
+    isSaving,
     loadDesigns,
+    saveDesign,
     loadDesign,
     deleteDesign,
     renameDesign,
-    createNewDesign,
+    currentDesignId,
+    currentDesignName,
+    createNewDesign
   } = useDesignStorage();
 
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
+  const [newDesignName, setNewDesignName] = useState('');
+  const [showSaveDialog, setShowSaveDialog] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -36,156 +43,226 @@ export function SavedDesignsPanel({ onLoadDesign, onNewDesign }: SavedDesignsPan
     }
   }, [user, loadDesigns]);
 
+  const handleSave = async () => {
+    const canvasData = getCanvasData();
+    if (!canvasData) {
+      toast.error('Could not get canvas data');
+      return;
+    }
+
+    const thumbnail = canvasRef.current?.exportCanvasDataUrl('png') || undefined;
+    
+    await saveDesign(
+      newDesignName || 'Untitled Design',
+      JSON.stringify(canvasData),
+      thumbnail
+    );
+    
+    setShowSaveDialog(false);
+    setNewDesignName('');
+  };
+
   const handleLoad = async (design: SavedDesign) => {
-    const data = await loadDesign(design.id);
-    if (data) {
-      onLoadDesign(data);
+    const result = await loadDesign(design.id);
+    if (result && canvasRef.current) {
+      try {
+        const canvasData = typeof result.canvas_data === 'string' 
+          ? JSON.parse(result.canvas_data) 
+          : result.canvas_data;
+        await canvasRef.current.loadFromJSON(canvasData);
+        toast.success(`Loaded "${design.name}"`);
+      } catch (err) {
+        console.error('Error loading design:', err);
+        toast.error('Failed to load design to canvas');
+      }
     }
   };
 
-  const handleDelete = async (e: React.MouseEvent, designId: string) => {
-    e.stopPropagation();
-    if (confirm('Are you sure you want to delete this design?')) {
-      await deleteDesign(designId);
-    }
-  };
-
-  const handleStartRename = (e: React.MouseEvent, design: SavedDesign) => {
-    e.stopPropagation();
+  const handleStartRename = (design: SavedDesign) => {
     setEditingId(design.id);
     setEditName(design.name);
   };
 
-  const handleSaveRename = async (e: React.MouseEvent, designId: string) => {
-    e.stopPropagation();
+  const handleConfirmRename = async (id: string) => {
     if (editName.trim()) {
-      await renameDesign(designId, editName.trim());
+      await renameDesign(id, editName.trim());
     }
     setEditingId(null);
+    setEditName('');
   };
 
-  const handleCancelRename = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const handleCancelRename = () => {
     setEditingId(null);
-  };
-
-  const handleNewDesign = () => {
-    createNewDesign();
-    onNewDesign();
+    setEditName('');
   };
 
   if (!user) {
     return (
-      <div className="p-4 text-center text-muted-foreground">
-        <Folder className="w-12 h-12 mx-auto mb-3 opacity-50" />
-        <p className="text-sm">Sign in to save and access your designs</p>
+      <div className="flex flex-col items-center justify-center h-full p-6 text-center">
+        <AlertCircle className="w-12 h-12 text-muted-foreground mb-4" />
+        <h3 className="font-semibold mb-2">Sign In Required</h3>
+        <p className="text-sm text-muted-foreground">
+          Please sign in to save and load designs.
+        </p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col h-full">
-      <div className="p-3 border-b border-border">
-        <Button 
-          variant="outline" 
-          className="w-full gap-2"
-          onClick={handleNewDesign}
-        >
-          <FilePlus className="w-4 h-4" />
-          New Design
-        </Button>
+    <div className="h-full flex flex-col">
+      <div className="flex items-center justify-between mb-4">
+        <div>
+          <h3 className="text-lg font-semibold">Saved Designs</h3>
+          {currentDesignName && (
+            <p className="text-sm text-muted-foreground">
+              Current: {currentDesignName}
+            </p>
+          )}
+        </div>
+        
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={createNewDesign}>
+            <FilePlus className="w-4 h-4 mr-1" />
+            New
+          </Button>
+          
+          <Dialog open={showSaveDialog} onOpenChange={setShowSaveDialog}>
+            <DialogTrigger asChild>
+              <Button size="sm">
+                <Save className="w-4 h-4 mr-1" />
+                Save
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Save Design</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 pt-4">
+                <Input
+                  placeholder="Design name..."
+                  value={newDesignName}
+                  onChange={(e) => setNewDesignName(e.target.value)}
+                />
+                <div className="flex justify-end gap-2">
+                  <Button variant="outline" onClick={() => setShowSaveDialog(false)}>
+                    Cancel
+                  </Button>
+                  <Button onClick={handleSave} disabled={isSaving}>
+                    {isSaving ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Save className="w-4 h-4 mr-2" />
+                    )}
+                    Save
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="p-2 space-y-1">
-          {isLoading ? (
-            <div className="flex items-center justify-center py-8">
-              <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-            </div>
-          ) : designs.length === 0 ? (
-            <div className="text-center py-8 text-muted-foreground text-sm">
-              <p>No saved designs yet</p>
-              <p className="text-xs mt-1">Save your first design to see it here</p>
-            </div>
-          ) : (
-            designs.map((design) => (
+      {isLoading ? (
+        <div className="flex items-center justify-center flex-1">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : designs.length === 0 ? (
+        <div className="flex flex-col items-center justify-center flex-1 p-6 text-center">
+          <Folder className="w-12 h-12 text-muted-foreground mb-4" />
+          <h3 className="font-semibold mb-2">No Saved Designs</h3>
+          <p className="text-sm text-muted-foreground">
+            Click "Save" to save your current design.
+          </p>
+        </div>
+      ) : (
+        <ScrollArea className="flex-1">
+          <div className="space-y-2 pr-4">
+            {designs.map((design) => (
               <div
                 key={design.id}
-                onClick={() => handleLoad(design)}
                 className={cn(
-                  "group flex items-start gap-3 p-3 rounded-lg cursor-pointer transition-colors",
-                  "hover:bg-accent/50",
-                  currentDesignId === design.id && "bg-accent border border-primary/20"
+                  "flex items-center gap-3 p-3 rounded-lg border transition-colors cursor-pointer hover:bg-muted/50",
+                  currentDesignId === design.id && "bg-primary/10 border-primary"
                 )}
+                onClick={() => handleLoad(design)}
               >
-                {/* Thumbnail */}
-                <div className="w-14 h-14 rounded-md bg-muted border border-border overflow-hidden shrink-0 flex items-center justify-center">
-                  {design.thumbnail_url ? (
-                    <img 
-                      src={design.thumbnail_url} 
-                      alt={design.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Folder className="w-5 h-5 text-muted-foreground" />
-                  )}
-                </div>
+                {design.thumbnail_url ? (
+                  <img
+                    src={design.thumbnail_url}
+                    alt={design.name}
+                    className="w-12 h-12 rounded object-cover border"
+                  />
+                ) : (
+                  <div className="w-12 h-12 rounded bg-muted flex items-center justify-center">
+                    <Folder className="w-6 h-6 text-muted-foreground" />
+                  </div>
+                )}
                 
                 <div className="flex-1 min-w-0">
                   {editingId === design.id ? (
-                    <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                       <Input
                         value={editName}
                         onChange={(e) => setEditName(e.target.value)}
                         className="h-7 text-sm"
                         autoFocus
                         onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleSaveRename(e as unknown as React.MouseEvent, design.id);
-                          if (e.key === 'Escape') setEditingId(null);
+                          if (e.key === 'Enter') handleConfirmRename(design.id);
+                          if (e.key === 'Escape') handleCancelRename();
                         }}
                       />
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => handleSaveRename(e, design.id)}>
-                        <Check className="w-3 h-3" />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={() => handleConfirmRename(design.id)}
+                      >
+                        <Check className="w-4 h-4" />
                       </Button>
-                      <Button size="icon" variant="ghost" className="h-7 w-7" onClick={handleCancelRename}>
-                        <X className="w-3 h-3" />
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={handleCancelRename}
+                      >
+                        <X className="w-4 h-4" />
                       </Button>
                     </div>
                   ) : (
                     <>
-                      <p className="text-sm font-medium truncate">{design.name}</p>
+                      <p className="font-medium truncate">{design.name}</p>
                       <p className="text-xs text-muted-foreground">
                         {formatDistanceToNow(new Date(design.updated_at), { addSuffix: true })}
                       </p>
                     </>
                   )}
                 </div>
-
+                
                 {editingId !== design.id && (
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex gap-1" onClick={(e) => e.stopPropagation()}>
                     <Button
-                      size="icon"
                       variant="ghost"
-                      className="h-7 w-7"
-                      onClick={(e) => handleStartRename(e, design)}
+                      size="icon"
+                      className="h-8 w-8"
+                      onClick={() => handleStartRename(design)}
                     >
-                      <Edit2 className="w-3 h-3" />
+                      <Edit2 className="w-4 h-4" />
                     </Button>
                     <Button
-                      size="icon"
                       variant="ghost"
-                      className="h-7 w-7 hover:text-destructive"
-                      onClick={(e) => handleDelete(e, design.id)}
+                      size="icon"
+                      className="h-8 w-8 text-destructive hover:text-destructive"
+                      onClick={() => deleteDesign(design.id)}
                     >
-                      <Trash2 className="w-3 h-3" />
+                      <Trash2 className="w-4 h-4" />
                     </Button>
                   </div>
                 )}
               </div>
-            ))
-          )}
-        </div>
-      </ScrollArea>
+            ))}
+          </div>
+        </ScrollArea>
+      )}
     </div>
   );
 }
