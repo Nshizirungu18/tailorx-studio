@@ -354,8 +354,8 @@ export default function Studio() {
               )}
               {activeRightTab === 'designs' && (
                 <SavedDesignsPanel
-                  onLoadDesign={handleLoadDesign}
-                  onNewDesign={handleNewDesign}
+                  canvasRef={canvasRef}
+                  getCanvasData={() => canvasRef.current?.getCanvasJSON() || null}
                 />
               )}
               {activeRightTab === 'layers' && (
