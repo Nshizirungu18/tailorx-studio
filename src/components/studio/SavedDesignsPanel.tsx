@@ -66,9 +66,9 @@ export function SavedDesignsPanel({ canvasRef, getCanvasData }: SavedDesignsPane
     const result = await loadDesign(design.id);
     if (result && canvasRef.current) {
       try {
-        const canvasData = typeof result.canvas_data === 'string' 
-          ? JSON.parse(result.canvas_data) 
-          : result.canvas_data;
+        const canvasData = typeof result === 'string' 
+          ? JSON.parse(result) 
+          : result;
         await canvasRef.current.loadFromJSON(canvasData);
         toast.success(`Loaded "${design.name}"`);
       } catch (err) {
